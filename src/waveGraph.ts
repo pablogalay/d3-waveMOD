@@ -290,7 +290,7 @@ export class WaveGraph {
 				'icon': faFilter,
 				'tooltip': 'Filter signals to display',
 				'onclick': function() {
-
+					// Implement filtering
 				}
 			}
 

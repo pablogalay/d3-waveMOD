@@ -1531,87 +1531,6 @@
                     /*action*/ formatChanger));
                 }
             }
-            // Helper function to check if signal is multi-bit
-            function isMultiBitSignal(signal) {
-                //check if the "data" section has a b at the start of the string
-                return typeof signal.data === 'string' && signal.data.startsWith('b');
-            }
-            function breakDownSignal() {
-            }
-            /*
-            // Helper function to parse binary string (e.g., "b00101") to decimal
-            function parseBinaryString(binaryStr: string): number {
-                // Remove the 'b' prefix and convert to decimal
-                if (binaryStr.startsWith('b')) {
-                    return parseInt(binaryStr.substring(1), 2);
-                }
-                // Handle 'X' values (undefined/don't care) as 0 or however you want to represent them
-                if (binaryStr.includes('X')) {
-                    return -1; // Or another special value to indicate "don't care"
-                }
-                return parseInt(binaryStr, 2);
-            }
-            
-            // Function to break down a multi-bit signal into individual bits
-            function breakDownSignal(cm: ContextMenu<HierarchyNodeWaveGraphSignalWithXYId>,
-                elm: SVGGElement,
-                data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
-                index: number) {
-                
-                const signal = data.data;
-                const signalWidth = signal.data.data.type.width;
-                
-                if (!isMultiBitSignal(signal)) {
-                    return; // Don't process single-bit signals
-                }
-                
-                // Create individual bit signals for each bit position
-                for (let i = 0; i < signalWidth; i++) {
-                    // Create a new signal for this bit
-                    const bitSignal = structuredClone(signal); // Deep clone the signal
-                    
-                    // Update properties for this specific bit
-                    bitSignal.data.id = `${signal.data.id}_bit${i}`; // Unique ID
-                    bitSignal.data.name = `${signal.data.name}[${i}]`; // Add bit index to name
-                    bitSignal.data.data.type.width = 1; // Set width to 1 bit
-                    bitSignal.data.data.originalSignal = signal.data.id; // Store reference to parent
-                    bitSignal.data.data.bitIndex = i; // Store bit index
-                    
-                    // Process data points for this bit
-                    const newData = [];
-                    for (const dataPoint of signal.data.data.data) {
-                        const time = dataPoint[0];
-                        let value = dataPoint[1];
-                        
-                        // Handle different data formats
-                        let bitValue;
-                        if (typeof value === 'string' && value.startsWith('b')) {
-                            // Handle binary string (e.g., "b00101")
-                            const binaryStr = value.substring(1); // Remove 'b' prefix
-                            const padded = binaryStr.padStart(signalWidth, '0');
-                            // Extract the specific bit (reverse order since LSB is rightmost)
-                            const bit = padded[padded.length - 1 - i];
-                            bitValue = bit === 'X' ? 'X' : bit; // Preserve 'X' if present
-                        } else if (typeof value === 'number') {
-                            // Handle numeric value
-                            bitValue = ((value >> i) & 1).toString();
-                        } else {
-                            // Handle any other format (e.g., if data is already in bit form)
-                            bitValue = value;
-                        }
-                        
-                        newData.push([time, bitValue]);
-                    }
-                    
-                    // Set the processed data for this bit
-                    bitSignal.data.data.data = newData;
-                    
-                    // Add the bit signal to the waveGraph tree
-                    waveGraph.addSignal(bitSignal);
-                }
-                
-                waveGraph.draw();
-            }*/
             return [
                 new ContextMenuItem('Remove', d.data, [], false, false, 
                 /*action*/ (cm, elm, data, index) => {
@@ -1626,11 +1545,10 @@
                 /* divider */ false, 
                 /* disabled */ formatOptions.length == 0, 
                 /*action*/ null),
-                new ContextMenuItem('Break down', d.data, [], // No children
-                false, // No divider
-                !isMultiBitSignal(d.data), // Disable if not multi-bit
-                breakDownSignal // Action to perform
-                )
+                new ContextMenuItem('Break down', d.data, [], 
+                /* divider */ false, 
+                /* disabled */ false, 
+                /*action*/ null),
             ];
         }
     }

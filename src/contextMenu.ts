@@ -60,55 +60,8 @@ export class ContextMenu<T> {
 	//	return ContextMenu.isFn(value) ? value : ContextMenu.const(value) as T;
 	//}
 	getMenuItems(d: ContextMenuItem<T>): ContextMenuItem<any>[] {
-        const items: ContextMenuItem<T>[] = [];
-
-        // Verificar si la señal es multinivel
-        if (this.isMultilevelSignal(d.data)) {
-            items.push(
-                new ContextMenuItem(
-                    "Ver señal multinivel",  // Título del menú
-                    d.data,  // Datos asociados
-                    [],  // Sin hijos
-                    false,  // No es un divisor
-                    false,  // No está deshabilitado
-                    (menu, elment, data, index) => {
-                        this.showMultilevelSignal(data);  // Acción para ver la señal multinivel
-                    }
-                )
-            );
-        }
-
-        // Aquí agregamos las demás opciones del menú (si existen)
-        return items;
-    }
-
-    // 2. Método para detectar si la señal es multinivel
-	isMultilevelSignal(data: any[]): boolean {
-		// Recorremos todos los elementos en la lista de datos
-		for (const entry of data) {
-			const value = entry[1];  // Los valores están en la segunda posición de cada par (tiempo, valor)
-			
-			// Verificamos si el valor es distinto de '0' o '1'
-			if (value !== '0' && value !== '1') {
-				return true;  // Si encontramos un valor diferente a '0' o '1', es una señal multinivel
-			}
-		}
-		return false;  // Si todos los valores son '0' o '1', no es una señal multinivel
+		throw new Error("Override this method in your implementation of this class");
 	}
-
-    // 3. Acción para mostrar la señal multinivel
-    showMultilevelSignal(data: T) {
-        // Aquí puedes implementar la lógica para representar la señal como una señal digital multinivel
-        // Esto puede implicar abrir un modal, graficar la señal en algún lugar, etc.
-        console.log("Mostrando señal multinivel:", data);
-
-        // Ejemplo de representación en consola (puedes cambiar esto por una visualización en pantalla):
-        if (Array.isArray(data)) {
-            console.log("Señal digital multinivel: ", data.join(' '));  // Si es un arreglo de bits
-        } else {
-            console.log("Valor de la señal: ", data);  // Si es un número, lo tratamos como tal
-        }
-    }
 
 	onOpen(element: SVGGElement, data: T): boolean {
 		return true;

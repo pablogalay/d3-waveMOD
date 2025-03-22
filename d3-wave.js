@@ -1504,6 +1504,7 @@
             var _a;
             let waveGraph = this.waveGraph;
             let formatOptions = [];
+            let breakdownOptions = [];
             // construct format options from values in formatters dictionary
             var formatters = ((_a = d.data.data.type.renderer) === null || _a === void 0 ? void 0 : _a.FORMATTERS) || {};
             function formatChanger(cm, elm, data, index) {
@@ -1545,9 +1546,14 @@
                 /* divider */ false, 
                 /* disabled */ formatOptions.length == 0, 
                 /*action*/ null),
+<<<<<<< HEAD
+                new ContextMenuItem('Break down', d.data, 
+                /* children */ breakdownOptions, 
+=======
                 new ContextMenuItem('Break down', d.data, [], 
+>>>>>>> 5692afb441352e7b635d40c538a46d309417a0ba
                 /* divider */ false, 
-                /* disabled */ formatOptions.length == 0, 
+                /* disabled */ breakdownOptions.length == 0, 
                 /*action*/ null),
             ];
         }

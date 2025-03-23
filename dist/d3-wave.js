@@ -1545,10 +1545,28 @@
                 /* divider */ false, 
                 /* disabled */ formatOptions.length == 0, 
                 /*action*/ null),
-                new ContextMenuItem('Break down', d.data, [], // No children
-                false, // No divider
-                false, // Not disabled
-                null)
+                new ContextMenuItem('Break down', d.data, [], 
+                /* divider */ false, 
+                /* disabled */ false, 
+                /*action*/ (cm, elm, data, index) => {
+                    const parentSignalName = d.data.data.name;
+                    const newSignalData = {
+                        name: `${parentSignalName} Child`,
+                        type: {
+                            name: 'bit',
+                            renderer: d.data.data.type.renderer,
+                            formatter: d.data.data.type.formatter
+                        },
+                        data: [
+                            [0, 0, 0],
+                            [1, 0, 0],
+                            [2, 0, 0],
+                            // más datos con valores a 0...
+                        ],
+                        children: []
+                    };
+                    waveGraph.addChildSignal(parentSignalName, newSignalData);
+                }),
             ];
         }
     }
@@ -1928,6 +1946,41 @@
                 .merge(valueRows)
                 .call(renderWaveRows)
                 .attr('transform', (d, i) => 'translate(0,' + (i * ROW_Y) + ')');
+        }
+        addChildSignal(parentSignalName, newSignalData) {
+            if (!this._allData) {
+                console.error("No data available to add a child signal");
+                throw new Error("No data available to add a child signal");
+            }
+            console.log(`Searching for parent signal with name: ${parentSignalName}`);
+            function findSignalByName(signal, name) {
+                if (signal.name === name) {
+                    return signal;
+                }
+                if (signal.children) {
+                    for (const child of signal.children) {
+                        const found = findSignalByName(child, name);
+                        if (found) {
+                            return found;
+                        }
+                    }
+                }
+                return null;
+            }
+            const parentSignal = findSignalByName(this._allData, parentSignalName);
+            if (!parentSignal) {
+                console.error(`Parent signal with name ${parentSignalName} not found`);
+                throw new Error(`Parent signal with name ${parentSignalName} not found`);
+            }
+            console.log(`Parent signal found: ${parentSignal.name}`);
+            if (!parentSignal.children) {
+                parentSignal.children = [];
+            }
+            parentSignal.children.push(newSignalData);
+            console.log(`New child signal added to parent signal: ${parentSignal.name}`);
+            console.log(`New child signal data:`, newSignalData);
+            this.bindData(this._allData);
+            console.log("Data bound and graph updated");
         }
         bindData(_signalData) {
             if (_signalData.constructor !== Object) {

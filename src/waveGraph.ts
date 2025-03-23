@@ -395,6 +395,49 @@ export class WaveGraph {
 			.attr('transform', (d, i) => 'translate(0,' + (i * ROW_Y) + ')');
 	}
 
+	addChildSignal(parentSignalName: string, newSignalData: WaveGraphSignal) {
+		if (!this._allData) {
+			console.error("No data available to add a child signal");
+			throw new Error("No data available to add a child signal");
+		}
+	
+		console.log(`Searching for parent signal with name: ${parentSignalName}`);
+	
+		function findSignalByName(signal: WaveGraphSignal, name: string): WaveGraphSignal | null {
+			if (signal.name === name) {
+				return signal;
+			}
+			if (signal.children) {
+				for (const child of signal.children) {
+					const found = findSignalByName(child, name);
+					if (found) {
+						return found;
+					}
+				}
+			}
+			return null;
+		}
+	
+		const parentSignal = findSignalByName(this._allData, parentSignalName);
+		if (!parentSignal) {
+			console.error(`Parent signal with name ${parentSignalName} not found`);
+			throw new Error(`Parent signal with name ${parentSignalName} not found`);
+		}
+	
+		console.log(`Parent signal found: ${parentSignal.name}`);
+	
+		if (!parentSignal.children) {
+			parentSignal.children = [];
+		}
+		parentSignal.children.push(newSignalData);
+	
+		console.log(`New child signal added to parent signal: ${parentSignal.name}`);
+		console.log(`New child signal data:`, newSignalData);
+	
+		this.bindData(this._allData);
+		console.log("Data bound and graph updated");
+	}
+
 	bindData(_signalData: WaveGraphSignal) {
 		if (_signalData.constructor !== Object) {
 			throw new Error('Data in invalid format (should be dictionary and is ' + _signalData + ')');

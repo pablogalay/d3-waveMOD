@@ -35,6 +35,7 @@ export declare class WaveGraph {
     drawControlIcons(): void;
     drawYAxis(): void;
     draw(): void;
+    addChildSignal(parentSignalName: string, newSignalData: WaveGraphSignal): void;
     bindData(_signalData: WaveGraphSignal): void;
     zoomReset(): void;
 }

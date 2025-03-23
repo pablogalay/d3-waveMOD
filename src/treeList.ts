@@ -307,3 +307,5 @@ export class TreeList {
 		);
 	}
 }
+export { WaveGraphSignal };
+

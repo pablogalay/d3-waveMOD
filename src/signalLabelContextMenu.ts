@@ -1,6 +1,8 @@
-import type { WaveGraph } from './waveGraph';
+import { WaveGraph } from './waveGraph';
 import { ContextMenu, ContextMenuItem } from './contextMenu';
 import type { HierarchyNodeWaveGraphSignalWithXYId } from './treeList';
+import { WaveGraphSignal } from './data'
+
 
 export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalWithXYId> {
 	waveGraph: WaveGraph;
@@ -8,6 +10,7 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 		super();
 		this.waveGraph = waveGraph;
 	}
+
 	getMenuItems(d: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>): ContextMenuItem<any>[] {
 		let waveGraph = this.waveGraph;
 		let formatOptions: ContextMenuItem<string>[] = [];
@@ -71,13 +74,35 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 				/*action*/ null,
 			),
 			new ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>(
-				'Break down',
+                'Break down',
 				d.data,
-				[], // No children
-				false, // No divider
-				false, // Not disabled
-				null
-			)
+				[],
+				/* divider */ false,
+				/* disabled */ false,
+				/*action*/(cm: ContextMenu<HierarchyNodeWaveGraphSignalWithXYId>,
+					elm: SVGGElement,
+					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
+					index: number) => {
+					const parentSignalName = d.data.data.name;
+					
+					const newSignalData: WaveGraphSignal = {
+						name: `${parentSignalName} Child`,
+						type: {
+							name: 'bit',
+							renderer: d.data.data.type.renderer,
+							formatter: d.data.data.type.formatter
+						},
+						data: [
+							[0, 0, 0],
+							[1, 0, 0],
+							[2, 0, 0],
+							// más datos con valores a 0...
+						],
+						children: []
+					};
+					waveGraph.addChildSignal(parentSignalName, newSignalData);
+				}
+            ),
 		];
 		
 	}

@@ -36,3 +36,4 @@ export declare class TreeList {
     filter(predicate: (d: WaveGraphSignal) => boolean): void;
     update(): void;
 }
+export { WaveGraphSignal };

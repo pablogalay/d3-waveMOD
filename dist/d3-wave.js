@@ -1549,23 +1549,11 @@
                 /* divider */ false, 
                 /* disabled */ false, 
                 /*action*/ (cm, elm, data, index) => {
-                    const parentSignalName = d.data.data.name;
-                    const newSignalData = {
-                        name: `${parentSignalName} Child`,
-                        type: {
-                            name: 'bit',
-                            renderer: d.data.data.type.renderer,
-                            formatter: d.data.data.type.formatter
-                        },
-                        data: [
-                            [0, 0, 0],
-                            [1, 0, 0],
-                            [2, 0, 0],
-                            // más datos con valores a 0...
-                        ],
-                        children: []
-                    };
-                    waveGraph.addChildSignal(parentSignalName, newSignalData);
+                    var _a;
+                    d.data.data.type.isSelected = true;
+                    return (_a = waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.filter((d) => {
+                        return !d.type.isSelected;
+                    });
                 }),
             ];
         }

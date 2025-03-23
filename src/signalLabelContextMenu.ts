@@ -83,24 +83,10 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 					elm: SVGGElement,
 					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
 					index: number) => {
-					const parentSignalName = d.data.data.name;
-					
-					const newSignalData: WaveGraphSignal = {
-						name: `${parentSignalName} Child`,
-						type: {
-							name: 'bit',
-							renderer: d.data.data.type.renderer,
-							formatter: d.data.data.type.formatter
-						},
-						data: [
-							[0, 0, 0],
-							[1, 0, 0],
-							[2, 0, 0],
-							// más datos con valores a 0...
-						],
-						children: []
-					};
-					waveGraph.addChildSignal(parentSignalName, newSignalData);
+					d.data.data.type.isSelected = true;
+					return waveGraph.treelist?.filter((d) => {
+						return !d.type.isSelected;
+					});
 				}
             ),
 		];

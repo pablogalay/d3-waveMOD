@@ -1,7 +1,8 @@
 import { WaveGraph } from './waveGraph';
 import { ContextMenu, ContextMenuItem } from './contextMenu';
 import type { HierarchyNodeWaveGraphSignalWithXYId } from './treeList';
-import { WaveGraphSignal } from './data'
+import { WaveGraphSignal, SignalDataValueTuple } from './data'
+import { Sign } from 'crypto';
 
 
 export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalWithXYId> {
@@ -59,6 +60,8 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 					elm: SVGGElement,
 					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
 					index: number) => {
+					console.log('Remove signal type', d.data.data.type);
+					console.log('Remove signal type', d.data.data.type.name);
 					d.data.data.type.isSelected = true;
 					return waveGraph.treelist?.filter((d) => {
 						return !d.type.isSelected;
@@ -74,21 +77,34 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 				/*action*/ null,
 			),
 			new ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>(
-                'Break down',
+				'Break down',
 				d.data,
 				[],
 				/* divider */ false,
-				/* disabled */ false,
+				/* disabled */ d.data.data.isBrokenDown || formatOptions.length == 0,
 				/*action*/(cm: ContextMenu<HierarchyNodeWaveGraphSignalWithXYId>,
 					elm: SVGGElement,
 					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
 					index: number) => {
-					d.data.data.type.isSelected = true;
-					return waveGraph.treelist?.filter((d) => {
-						return !d.type.isSelected;
-					});
+					if (d.data.data.isBrokenDown) {
+						console.log('Signal has already been broken down', d.data.data.name);
+						return;
+					}
+					const parentType = d.data.data.type;
+					const parentData = d.data.data.data;
+					const parentSignalName = d.data.data.name;
+					const parentIsBrokenDown = true;
+					const newSignalData: WaveGraphSignal = {
+						name: `${parentSignalName} Child`,
+						type: parentType,
+						data: parentData,
+						isBrokenDown: parentIsBrokenDown,
+					};
+
+					waveGraph.addChildSignal(parentSignalName, newSignalData);
+					d.data.data.isBrokenDown = true;
 				}
-            ),
+			),
 		];
 		
 	}

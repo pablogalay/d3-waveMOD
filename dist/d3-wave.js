@@ -1535,6 +1535,8 @@
                 new ContextMenuItem('Remove', d.data, [], false, false, 
                 /*action*/ (cm, elm, data, index) => {
                     var _a;
+                    console.log('Remove signal type', d.data.data.type);
+                    console.log('Remove signal type', d.data.data.type.name);
                     d.data.data.type.isSelected = true;
                     return (_a = waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.filter((d) => {
                         return !d.type.isSelected;
@@ -1547,13 +1549,24 @@
                 /*action*/ null),
                 new ContextMenuItem('Break down', d.data, [], 
                 /* divider */ false, 
-                /* disabled */ false, 
+                /* disabled */ d.data.data.isBrokenDown || formatOptions.length == 0, 
                 /*action*/ (cm, elm, data, index) => {
-                    var _a;
-                    d.data.data.type.isSelected = true;
-                    return (_a = waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.filter((d) => {
-                        return !d.type.isSelected;
-                    });
+                    if (d.data.data.isBrokenDown) {
+                        console.log('Signal has already been broken down', d.data.data.name);
+                        return;
+                    }
+                    const parentType = d.data.data.type;
+                    const parentData = d.data.data.data;
+                    const parentSignalName = d.data.data.name;
+                    const parentIsBrokenDown = true;
+                    const newSignalData = {
+                        name: `${parentSignalName} Child`,
+                        type: parentType,
+                        data: parentData,
+                        isBrokenDown: parentIsBrokenDown,
+                    };
+                    waveGraph.addChildSignal(parentSignalName, newSignalData);
+                    d.data.data.isBrokenDown = true;
                 }),
             ];
         }
@@ -1936,6 +1949,7 @@
                 .attr('transform', (d, i) => 'translate(0,' + (i * ROW_Y) + ')');
         }
         addChildSignal(parentSignalName, newSignalData) {
+            var _a, _b;
             if (!this._allData) {
                 console.error("No data available to add a child signal");
                 throw new Error("No data available to add a child signal");
@@ -1964,11 +1978,56 @@
             if (!parentSignal.children) {
                 parentSignal.children = [];
             }
-            parentSignal.children.push(newSignalData);
-            console.log(`New child signal added to parent signal: ${parentSignal.name}`);
-            console.log(`New child signal data:`, newSignalData);
+            // Extraer los valores de la señal
+            const signalDataString = newSignalData.data.toString();
+            const dataEntries = signalDataString.split(',');
+            // Determinar la cantidad de bits en los valores binarios
+            const firstBinaryValue = dataEntries.find(entry => entry.startsWith('b'));
+            if (!firstBinaryValue) {
+                console.error("No valid binary signal data found.");
+                return;
+            }
+            const bitCount = firstBinaryValue.length - 1;
+            console.log(`Signal data string: ${signalDataString}`);
+            console.log(`Number of bits: ${bitCount}`);
+            // Crear estructuras para cada señal de bit
+            let bitSignals = [];
+            for (let bitIndex = 0; bitIndex < bitCount; bitIndex++) {
+                bitSignals.push({
+                    name: `${newSignalData.name}_bit${bitIndex}`,
+                    data: [],
+                    type: {
+                        width: 1,
+                        name: 'wire',
+                        formatter: undefined,
+                        renderer: new RowRendererBit(this)
+                    },
+                    isBrokenDown: true,
+                });
+            }
+            // Llenar los datos de cada bit con [time, bitValue, 0]
+            for (let i = 0; i < dataEntries.length; i += 2) {
+                const time = Number(dataEntries[i]);
+                const binaryValue = (_a = dataEntries[i + 1]) === null || _a === void 0 ? void 0 : _a.substring(1); // Remueve la 'b'
+                if (binaryValue) {
+                    for (let bitIndex = 0; bitIndex < bitCount; bitIndex++) {
+                        const bitValue = (_b = binaryValue[bitCount - 1 - bitIndex]) !== null && _b !== void 0 ? _b : 'X'; // Manejar valores desconocidos
+                        bitSignals[bitIndex].data.push([time, bitValue, 0]);
+                    }
+                }
+                else {
+                    console.warn(`Missing binary value for time: ${time}`);
+                }
+            }
+            // Agregar las señales hijas al padre
+            parentSignal.children.push(...bitSignals);
+            // Mostrar los datos generados
+            bitSignals.forEach(sig => {
+                console.log(`Generated signal: ${sig.name}`);
+                console.log(`Data: ${JSON.stringify(sig.data)}`);
+            });
+            // Actualizar los datos en la visualización
             this.bindData(this._allData);
-            console.log("Data bound and graph updated");
         }
         bindData(_signalData) {
             if (_signalData.constructor !== Object) {

@@ -28,17 +28,18 @@ export class WaveGraphSignal {
 	data: SignalDataValueTuple[];
 	children?: WaveGraphSignal[];
 	_children?: WaveGraphSignal[];
+	isBrokenDown: any;
 
 	constructor(name: string, type: WaveGraphSignalTypeInfo, data: SignalDataValueTuple[],
-		children: WaveGraphSignal[] | undefined = undefined, expanded: boolean = true) {
+		children: WaveGraphSignal[] | undefined = undefined, expanded: boolean = true, isBrokenDown: any = false) {
 		this.name = name;
 		this.type = type;
 		this.data = data;
+		this.isBrokenDown = isBrokenDown;
 		if (expanded) {
 			this.children = children;
 		} else {
 			this.children = children;
 		}
-
 	}
 };

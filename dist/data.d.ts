@@ -20,5 +20,6 @@ export declare class WaveGraphSignal {
     data: SignalDataValueTuple[];
     children?: WaveGraphSignal[];
     _children?: WaveGraphSignal[];
-    constructor(name: string, type: WaveGraphSignalTypeInfo, data: SignalDataValueTuple[], children?: WaveGraphSignal[] | undefined, expanded?: boolean);
+    isBrokenDown: any;
+    constructor(name: string, type: WaveGraphSignalTypeInfo, data: SignalDataValueTuple[], children?: WaveGraphSignal[] | undefined, expanded?: boolean, isBrokenDown?: any);
 }

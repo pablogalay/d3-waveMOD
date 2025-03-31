@@ -429,15 +429,67 @@ export class WaveGraph {
 		if (!parentSignal.children) {
 			parentSignal.children = [];
 		}
-		parentSignal.children.push(newSignalData);
 	
-		console.log(`New child signal added to parent signal: ${parentSignal.name}`);
-		console.log(`New child signal data:`, newSignalData);
+		// Extraer los valores de la señal
+		const signalDataString = newSignalData.data.toString();
+		const dataEntries = signalDataString.split(',');
 	
+		// Determinar la cantidad de bits en los valores binarios
+		const firstBinaryValue = dataEntries.find(entry => entry.startsWith('b'));
+		if (!firstBinaryValue) {
+			console.error("No valid binary signal data found.");
+			return;
+		}
+		const bitCount = firstBinaryValue.length - 1;
+	
+		console.log(`Signal data string: ${signalDataString}`);
+		console.log(`Number of bits: ${bitCount}`);
+	
+		// Crear estructuras para cada señal de bit
+		let bitSignals: WaveGraphSignal[] = [];
+		for (let bitIndex = 0; bitIndex < bitCount; bitIndex++) {
+			bitSignals.push({
+				name: `${newSignalData.name}_bit${bitIndex}`,
+				data: [],
+				type: {
+					width: 1,
+					name: 'wire',
+					formatter: undefined,
+					renderer: new RowRendererBit(this)
+				},
+				isBrokenDown: true,
+			});
+		}
+	
+		// Llenar los datos de cada bit con [time, bitValue, 0]
+		for (let i = 0; i < dataEntries.length; i += 2) {
+			const time = Number(dataEntries[i]);
+			const binaryValue = dataEntries[i + 1]?.substring(1); // Remueve la 'b'
+	
+			if (binaryValue) {
+				for (let bitIndex = 0; bitIndex < bitCount; bitIndex++) {
+					const bitValue = binaryValue[bitCount - 1 - bitIndex] ?? 'X'; // Manejar valores desconocidos
+					bitSignals[bitIndex].data.push([time, bitValue, 0]);
+				}
+			} else {
+				console.warn(`Missing binary value for time: ${time}`);
+			}
+		}
+	
+		// Agregar las señales hijas al padre
+		parentSignal.children.push(...bitSignals);
+	
+		// Mostrar los datos generados
+		bitSignals.forEach(sig => {
+			console.log(`Generated signal: ${sig.name}`);
+			console.log(`Data: ${JSON.stringify(sig.data)}`);
+		});
+	
+		// Actualizar los datos en la visualización
 		this.bindData(this._allData);
-		console.log("Data bound and graph updated");
 	}
-
+	
+	
 	bindData(_signalData: WaveGraphSignal) {
 		if (_signalData.constructor !== Object) {
 			throw new Error('Data in invalid format (should be dictionary and is ' + _signalData + ')');

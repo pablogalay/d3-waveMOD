@@ -18,7 +18,7 @@ export class RowRendererBits extends RowRendererBase {
 		return typeInfo.name === 'wire' && typeInfo.width as number > 1;
 	}
 	isValid(d: any) {
-		return d[1].indexOf('X') < 0;
+		return !/[XZWULH_]/.test(d[1]);
 	}
 	/*eslint no-unused-vars: ["error", { "args": "none" }]*/
 	render(parent: d3.Selection<SVGGElement, any, any, any>, data: SignalDataValueTuple[], typeInfo: WaveGraphSignalTypeInfo, formatter?: string | ((d: AnyWaveGraphValue) => string)) {

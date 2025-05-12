@@ -6,6 +6,18 @@ import { SignalContextMenu } from './signalLabelContextMenu';
 import { WaveGraphSignal } from './data';
 import { WaveGraphSizes } from './sizes';
 import './d3-wave.css';
+declare module './data' {
+    interface WaveGraphSignal {
+        annotations?: Array<{
+            time: number;
+            text: string;
+            color: string;
+            startTime?: number;
+            endTime?: number;
+        }>;
+        __signal?: WaveGraphSignal;
+    }
+}
 export declare class WaveGraph {
     svg: d3.Selection<SVGSVGElement, undefined, HTMLDivElement, undefined>;
     dataG: d3.Selection<SVGGElement, undefined, HTMLDivElement, undefined>;
@@ -25,6 +37,9 @@ export declare class WaveGraph {
     labelContextMenu: SignalContextMenu;
     data: WaveGraphSignal[];
     _allData?: WaveGraphSignal;
+    is_first_draw: boolean;
+    private filterPanel;
+    private helpPanel;
     constructor(svg: d3.Selection<SVGSVGElement, undefined, HTMLDivElement, undefined>);
     _setZoom(): void;
     _zoomed(ev: d3.D3ZoomEvent<SVGGElement, any>): void;
@@ -35,7 +50,10 @@ export declare class WaveGraph {
     drawControlIcons(): void;
     drawYAxis(): void;
     draw(): void;
-    addChildSignal(parentSignalName: string, newSignalData: WaveGraphSignal): void;
+    addChildSignal(parentSignalName: string, newSignalData: WaveGraphSignal, removedSignals: string[]): void;
     bindData(_signalData: WaveGraphSignal): void;
     zoomReset(): void;
+    compareAndAnnotateSignals(): void;
+    compareChildSignals(signalS: WaveGraphSignal, signalStar: WaveGraphSignal): void;
+    findClosestValueBefore(data: any[], time: number): any;
 }

@@ -64,8 +64,9 @@
         return function (d) {
             if (typeof d === 'number')
                 return d.toString(newBase);
-            if (d === "X")
+            if (d === "X" || d === "Z" || d === "W" || d === "U" || d === "L" || d === "H" || d === "_") {
                 return d;
+            }
             let baseChar = d[0];
             d = d.substring(1);
             let base = NUM_FORMATS[baseChar];
@@ -73,13 +74,17 @@
                 return d;
             }
             d = d.toUpperCase();
-            let containsX = d.indexOf('X') >= 0;
-            if (containsX && newBase === 10) {
-                return 'X';
+            let containsXZWULH_ = /[XZWULH_]/.test(d);
+            if (containsXZWULH_ && newBase === 10) {
+                return d;
             }
             let origD = d;
-            if (containsX) {
-                d = d.replace(/X/g, '0');
+            if (containsXZWULH_) {
+                // remove XZWULH_ chars from d
+                d = d.replace(/X|Z|W|U|L|H|_/g, '');
+                if (d === '') {
+                    return 'X';
+                } // all invalid digits
             }
             let num = BigInt('0' + baseChar + d).toString(newBase);
             if (newBase === 2) {
@@ -88,7 +93,7 @@
             if (base === 2) {
                 base = 1;
             }
-            if (containsX) {
+            if (containsXZWULH_) {
                 let _num = [];
                 for (let i = 0; i < num.length; i++) {
                     _num.push(num[i]);
@@ -171,7 +176,7 @@
             return typeInfo.name === 'wire' && typeInfo.width > 1;
         }
         isValid(d) {
-            return d[1].indexOf('X') < 0;
+            return !/[XZWULH_]/.test(d[1]);
         }
         /*eslint no-unused-vars: ["error", { "args": "none" }]*/
         render(parent, data, typeInfo, formatter) {
@@ -681,7 +686,8 @@
                 let val = d[1];
                 let valInt = NaN;
                 if (typeof val === 'string') {
-                    if (val.indexOf('X') >= 0) {
+                    if (val.indexOf('X') >= 0 || val.indexOf('Z') >= 0 || val.indexOf('W') >= 0 || val.indexOf('U') >= 0 || val.indexOf('L') >= 0 || val.indexOf('H') >= 0 || val.indexOf('_') >= 0) {
+                        d[1] = 'X';
                         invalidRanges.push(d);
                         return;
                     }
@@ -762,6 +768,110 @@
                 return d.indexOf('X') < 0;
             else
                 return d[1][1].indexOf('X') < 0;
+        }
+    }
+
+    class RowRendererAnnotation extends RowRendererBase {
+        constructor(waveGraph) {
+            super(waveGraph);
+            this.DEFAULT_FORMAT = (d) => String(d);
+            this.FORMATTERS = {
+                'default': this.DEFAULT_FORMAT
+            };
+        }
+        select(typeInfo) {
+            // This renderer is specialized for annotation rendering
+            // It would be called explicitly rather than through type selection
+            return false;
+        }
+        render(parent, data, typeInfo, formatter) {
+            // First call parent renderer to get the background
+            super.render(parent, data, typeInfo, formatter);
+            const waveRowX = this.waveGraph.waveRowX;
+            if (!waveRowX) {
+                return;
+            }
+            const signal = parent.datum();
+            if (!signal.annotations || signal.annotations.length === 0) {
+                return;
+            }
+            // Eliminar anotaciones anteriores
+            parent.selectAll('.signal-annotation').remove();
+            // Crear grupo para las anotaciones
+            const annotationsGroup = parent.append('g')
+                .attr('class', 'signal-annotation');
+            // Obtener la altura de la fila
+            const waveRowHeight = this.waveGraph.sizes.row.height;
+            // Dibujar las anotaciones según el tipo de señal
+            signal.annotations.forEach(annotation => {
+                const x = waveRowX(annotation.time);
+                if (annotation.startTime !== undefined && annotation.endTime !== undefined) {
+                    const startX = Math.max(waveRowX(annotation.startTime), 0);
+                    const endX = waveRowX(annotation.endTime);
+                    // Determinar el tipo de anotación según el ancho de la señal
+                    const isMultiBit = signal.type.width != 1;
+                    const lineY = signal.type.name === 'wire' ? -5 : -10;
+                    const textWidth = 20;
+                    if (startX < endX) {
+                        if (isMultiBit) {
+                            // Para señales multi-bit, usar líneas diagonales
+                            const patternId = `diagonalHatch_${Math.random().toString(36).substr(2, 9)}`;
+                            // Definir el patrón de líneas diagonales en el SVG
+                            const defs = annotationsGroup.append('defs');
+                            const pattern = defs.append('pattern')
+                                .attr('id', patternId)
+                                .attr('patternUnits', 'userSpaceOnUse')
+                                .attr('width', 8)
+                                .attr('height', 8)
+                                .attr('patternTransform', 'rotate(45)');
+                            pattern.append('line')
+                                .attr('x1', 0)
+                                .attr('y1', 0)
+                                .attr('x2', 0)
+                                .attr('y2', 8)
+                                .attr('stroke', annotation.color)
+                                .attr('stroke-width', 2);
+                            // Crear un rectángulo con el patrón de líneas diagonales
+                            annotationsGroup.append('rect')
+                                .attr('x', startX)
+                                .attr('y', 0)
+                                .attr('width', endX - startX)
+                                .attr('height', waveRowHeight)
+                                .attr('fill', `url(#${patternId})`)
+                                .attr('fill-opacity', 1)
+                                .attr('pointer-events', 'none');
+                        }
+                        else {
+                            // Para señales de un bit, usar líneas horizontales
+                            // Línea antes de la palabra
+                            annotationsGroup.append('line')
+                                .attr('x1', startX)
+                                .attr('y1', lineY + 15)
+                                .attr('x2', x - textWidth / 2)
+                                .attr('y2', lineY + 15)
+                                .attr('stroke', annotation.color)
+                                .attr('stroke-width', 2);
+                            // Línea después de la palabra
+                            annotationsGroup.append('line')
+                                .attr('x1', x + textWidth / 2)
+                                .attr('y1', lineY + 15)
+                                .attr('x2', endX)
+                                .attr('y2', lineY + 15)
+                                .attr('stroke', annotation.color)
+                                .attr('stroke-width', 2);
+                        }
+                        // Añadir la etiqueta de texto en el centro del rango
+                        annotationsGroup.append('text')
+                            .attr('x', x)
+                            .attr('y', isMultiBit ? waveRowHeight / 2 : lineY + 18)
+                            .attr('text-anchor', 'middle')
+                            .attr('font-size', '10px')
+                            .attr('fill', annotation.color)
+                            .attr('font-weight', 'bold')
+                            .text(annotation.text);
+                    }
+                }
+            });
         }
     }
 
@@ -945,6 +1055,7 @@
             this._onChange = null;
             this.nodes = [];
             this.labelMoving = new SignalLabelManipulation(barHeight, this);
+            this.currentFilter = null;
         }
         static getExpandCollapseIcon(d) {
             if (d.data.children || d.data._children) {
@@ -1102,6 +1213,7 @@
         filter(predicate) {
             if (!this.root)
                 return;
+            this.currentFilter = predicate;
             function remove(d) {
                 if (d.parent) {
                     if (!d.parent.children) {
@@ -1124,6 +1236,18 @@
             });
             if (updated) {
                 this.update();
+            }
+        }
+        getFilter() {
+            return this.currentFilter;
+        }
+        resetFilter() {
+            // Eliminar el filtro actual
+            this.currentFilter = null;
+            // Si tenemos datos originales, reconstruir la jerarquía
+            if (this.root && this.root.data) {
+                // Reconstruir el árbol completo
+                this.data(this.root.data);
             }
         }
         update() {
@@ -1498,7 +1622,28 @@
     class SignalContextMenu extends ContextMenu {
         constructor(waveGraph) {
             super();
+            this.removedSignals = [];
             this.waveGraph = waveGraph;
+        }
+        autoBreakDownSignals() {
+            var _a;
+            const targets = ["S", "S*"];
+            (_a = this.waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.visibleNodes().forEach((node) => {
+                if (targets.some(target => node.data.name === target) && !node.data.isBrokenDown && node.data.type.name !== "array") {
+                    const parentType = node.data.type;
+                    const parentData = node.data.data;
+                    const parentSignalName = node.data.name;
+                    const parentIsBrokenDown = true;
+                    const newSignalData = {
+                        name: `${parentSignalName} Child`,
+                        type: parentType,
+                        data: parentData,
+                        isBrokenDown: parentIsBrokenDown,
+                    };
+                    this.waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
+                    node.data.isBrokenDown = true;
+                }
+            });
         }
         getMenuItems(d) {
             var _a;
@@ -1532,11 +1677,13 @@
                 }
             }
             return [
-                new ContextMenuItem('Remove', d.data, [], false, false, 
+                new ContextMenuItem('Remove', d.data, [], false, 
+                /* disabled */ d.data.data.name.match(/Child_bit\d+/) !== null, 
                 /*action*/ (cm, elm, data, index) => {
                     var _a;
                     console.log('Remove signal type', d.data.data.type);
                     console.log('Remove signal type', d.data.data.type.name);
+                    this.removedSignals.push(d.data.data.name);
                     d.data.data.type.isSelected = true;
                     return (_a = waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.filter((d) => {
                         return !d.type.isSelected;
@@ -1549,7 +1696,7 @@
                 /*action*/ null),
                 new ContextMenuItem('Break down', d.data, [], 
                 /* divider */ false, 
-                /* disabled */ d.data.data.isBrokenDown || formatOptions.length == 0, 
+                /* disabled */ (d.data.data.isBrokenDown || (d.data.data.type.name == 'array')) || formatOptions.length == 0, 
                 /*action*/ (cm, elm, data, index) => {
                     if (d.data.data.isBrokenDown) {
                         console.log('Signal has already been broken down', d.data.data.name);
@@ -1565,7 +1712,7 @@
                         data: parentData,
                         isBrokenDown: parentIsBrokenDown,
                     };
-                    waveGraph.addChildSignal(parentSignalName, newSignalData);
+                    waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
                     d.data.data.isBrokenDown = true;
                 }),
             ];
@@ -1628,12 +1775,334 @@
         }
     }
 
-    var css_248z = ".d3-wave .value-line {\r\n\tfill: none;\r\n\tstroke: lime;\r\n\tstroke-width: 1.5px;\r\n}\r\n\r\n.d3-wave .grid-line-x {\r\n\tstroke: lightgrey;\r\n\topacity: 0.7;\r\n\tstroke-dasharray: 5, 5;\r\n}\r\n\r\n.d3-wave .grid path {\r\n\tstroke-width: 0;\r\n}\r\n\r\n.d3-wave .value-rect-invalid path {\r\n\tfill: darkred;\r\n\tstroke: red;\r\n}\r\n\r\n.d3-wave .value-rect-invalid rect {\r\n\tfill: darkred;\r\n\tstroke: red;\r\n}\r\n\r\n.d3-wave .value-rect-valid path {\r\n\tfill: green;\r\n\tstroke: lime;\r\n}\r\n\r\n.d3-wave .value-rect-valid text {\r\n\ttext-anchor: middle;\r\n\tfill: white;\r\n}\r\n\r\n.d3-wave .value-rect-invalid text {\r\n\ttext-anchor: middle;\r\n\tfill: white;\r\n}\r\n\r\n.d3-wave {\r\n\tbackground-color: black;\r\n}\r\n\r\n.d3-wave .domain {\r\n\tstroke: yellow;\r\n\tstroke-width: 1.5px;\r\n\tshape-rendering: crispEdges;\r\n\tvector-effect: non-scaling-stroke;\r\n}\r\n\r\n.d3-wave .tick line {\r\n\tstroke-width: 1.5px;\r\n\tstroke: yellow;\r\n}\r\n\r\n.d3-wave .axis text {\r\n\tshape-rendering: crispEdges;\r\n\tfill: yellow;\r\n}\r\n\r\n\r\n.d3-wave .axis-y path {\r\n\tshape-rendering: crispEdges;\r\n\tfill: yellow;\r\n}\r\n\r\n.d3-wave .axis-y .highlight text {\r\n    fill: #ff751a;\r\n    font-weight: bold;\r\n}\r\n\r\n.d3-wave .scrollbar .mover {\r\n  fill: steelblue;\r\n  pointer-events: all;\r\n  cursor: ns-resize;\r\n  opacity: 0.5;\r\n}\r\n\r\n.d3-wave .scrollbar .subBar { \r\n  fill: gray;\r\n  opacity: 0.5;\r\n}\r\n\r\n.d3-wave .vertical-help-line {\r\n\tstroke: white;\r\n\tstroke-width: 2;\r\n}\r\n\r\n.d3-wave .labelcell.selected rect {\r\n\topacity: 30%;\r\n\tfill: aqua;\r\n}\r\n\r\n.d3-wave .labelcell text {\r\n\tcursor:grabbing;\r\n}\r\n\r\n.d3-wave .labelcell .expandable {\r\n\tcursor:pointer;\r\n}\r\n\r\n.d3-wave.tooltip {\t\r\n    position: absolute;\t\t\t\r\n    text-align: center;\t\t\t\r\n    width: 60px;\t\t\t\t\t\r\n    height: 28px;\t\t\t\t\t\r\n    padding: 2px;\t\t\t\t\r\n    font: 12px sans-serif;\t\t\r\n    background-color: lightsteelblue;\t\r\n    border: 0px;\t\t\r\n    border-radius: 8px;\t\t\t\r\n    pointer-events: none;\t\t\t\r\n}\r\n\r\n.d3-wave .axis .icons {\r\n    fill: white;\r\n}\r\n\r\n.d3-wave .value-background {\r\n\topacity: 0%;\r\n}\r\n.d3-wave .value-background.selected {\r\n\topacity: 30%;\r\n\tfill: aqua;\r\n}";
+    class SignalFilterPanel {
+        constructor(graph) {
+            this.filterPanel = null;
+            this.isOpen = false;
+            this.signalCheckboxes = new Map();
+            this.originalFilter = null;
+            this.allSignalsList = []; // Para almacenar todas las señales disponibles
+            this.graph = graph;
+            this.container = graph.svg.append('g')
+                .attr('class', 'filter-panel-container');
+        }
+        // Método para mostrar/ocultar el panel
+        toggle() {
+            if (this.isOpen) {
+                this.close();
+            }
+            else {
+                this.open();
+            }
+        }
+        // Método para abrir el panel
+        open() {
+            var _a;
+            const graph = this.graph;
+            // Guardar el filtro original
+            this.originalFilter = ((_a = graph.treelist) === null || _a === void 0 ? void 0 : _a.getFilter()) || null;
+            // Crear el div del panel si no existe
+            if (!this.filterPanel) {
+                // Usamos foreignObject para incluir elementos HTML dentro del SVG
+                const foreignObject = this.container.append("foreignObject")
+                    .attr("width", 300)
+                    .attr("height", 400)
+                    .attr("x", graph.sizes.margin.left + 50)
+                    .attr("y", graph.sizes.margin.top + 20);
+                this.filterPanel = foreignObject.append("xhtml:div")
+                    .style("background-color", "white")
+                    .style("border", "1px solid #ccc")
+                    .style("border-radius", "5px")
+                    .style("padding", "10px")
+                    .style("box-shadow", "0 4px 8px rgba(0,0,0,0.1)")
+                    .style("max-height", "350px")
+                    .style("overflow-y", "auto");
+                // Añadir título
+                this.filterPanel.append("h3")
+                    .style("margin-top", "0")
+                    .style("border-bottom", "1px solid #eee")
+                    .style("padding-bottom", "8px")
+                    .text("Filter Signals");
+                // Contenedor para los checkboxes
+                const checkboxContainer = this.filterPanel.append("div")
+                    .style("margin-bottom", "10px");
+                // Añadir botones de acción
+                const buttonContainer = this.filterPanel.append("div")
+                    .style("display", "flex")
+                    .style("justify-content", "space-between")
+                    .style("margin-top", "10px");
+                buttonContainer.append("button")
+                    .style("padding", "4px 8px")
+                    .style("background-color", "#f1f1f1")
+                    .style("border", "1px solid #ddd")
+                    .style("border-radius", "3px")
+                    .style("cursor", "pointer")
+                    .text("Select All")
+                    .on("click", () => this.selectAll(true));
+                buttonContainer.append("button")
+                    .style("padding", "4px 8px")
+                    .style("background-color", "#f1f1f1")
+                    .style("border", "1px solid #ddd")
+                    .style("border-radius", "3px")
+                    .style("cursor", "pointer")
+                    .text("Deselect All")
+                    .on("click", () => this.selectAll(false));
+                buttonContainer.append("button")
+                    .style("padding", "4px 8px")
+                    .style("background-color", "#4CAF50")
+                    .style("color", "white")
+                    .style("border", "none")
+                    .style("border-radius", "3px")
+                    .style("cursor", "pointer")
+                    .text("Apply")
+                    .on("click", () => this.applyFilter());
+                buttonContainer.append("button")
+                    .style("padding", "4px 8px")
+                    .style("background-color", "#f44336")
+                    .style("color", "white")
+                    .style("border", "none")
+                    .style("border-radius", "3px")
+                    .style("cursor", "pointer")
+                    .text("Cancel")
+                    .on("click", () => this.close());
+                // Poblar con checkboxes
+                this.populateCheckboxes(checkboxContainer);
+            }
+            // Mostrar el panel
+            this.container.style("display", "block");
+            this.isOpen = true;
+        }
+        // Método para cerrar el panel
+        close() {
+            if (this.container) {
+                this.container.style("display", "none");
+            }
+            this.isOpen = false;
+        }
+        // Método para poblar la lista de checkboxes con las señales disponibles
+        populateCheckboxes(container) {
+            // Limpiar contenedor
+            container.html("");
+            // Obtener todas las señales disponibles y almacenarlas
+            this.allSignalsList = this.getAllSignals(this.graph._allData);
+            // Crear un conjunto de señales actualmente visibles
+            const visibleSignals = new Set();
+            if (this.graph.data) {
+                this.graph.data.forEach((signal) => {
+                    visibleSignals.add(signal.name);
+                });
+            }
+            // Crear checkboxes para cada señal
+            this.allSignalsList.forEach(signal => {
+                const isChecked = visibleSignals.has(signal);
+                this.signalCheckboxes.set(signal, isChecked);
+                const label = container.append("label")
+                    .style("display", "block")
+                    .style("margin", "5px 0")
+                    .style("cursor", "pointer");
+                const checkbox = label.append("input")
+                    .attr("type", "checkbox")
+                    .attr("name", "signal")
+                    .attr("value", signal)
+                    .property("checked", isChecked)
+                    .style("margin-right", "8px")
+                    .on("change", () => {
+                    const isChecked = checkbox.node().checked;
+                    this.signalCheckboxes.set(signal, isChecked);
+                });
+                label.append("span")
+                    .text(signal);
+            });
+        }
+        // Método para seleccionar/deseleccionar todos los checkboxes
+        selectAll(select) {
+            if (!this.filterPanel)
+                return;
+            // Actualizar los checkboxes en el DOM
+            this.filterPanel.selectAll("input[type=checkbox]")
+                .property("checked", select);
+            // Actualizar el mapa de señales
+            this.signalCheckboxes.forEach((_, key) => {
+                this.signalCheckboxes.set(key, select);
+            });
+        }
+        // Método para aplicar el filtro basado en los checkboxes seleccionados
+        applyFilter() {
+            if (!this.graph.treelist)
+                return;
+            // Paso 1: Quitar cualquier filtro existente para mostrar todas las señales primero
+            this.graph.treelist.resetFilter();
+            // Reconstruir el árbol completo de señales
+            if (this.graph._allData) {
+                // Crear una nueva jerarquía con todos los datos originales
+                this.graph.treelist.data(this.graph._allData);
+                this.graph.draw();
+            }
+            // Paso 2: Crear un conjunto de señales seleccionadas
+            const selectedSignals = new Set();
+            this.signalCheckboxes.forEach((isSelected, signalName) => {
+                if (isSelected) {
+                    selectedSignals.add(signalName);
+                }
+            });
+            // Paso 3: Aplicar el filtro al TreeList después de haber mostrado todas las señales
+            this.graph.treelist.filter((d) => {
+                // Si es una señal derivada de descomposición, buscar su padre
+                if (d.isBrokenDown && d.name.includes('_bit')) {
+                    const parentName = d.name.split('_bit')[0];
+                    return selectedSignals.has(parentName);
+                }
+                return selectedSignals.has(d.name);
+            });
+            // Redibuja el gráfico
+            this.graph.draw();
+            // Cierra el panel
+            this.close();
+        }
+        // Método para obtener todas las señales disponibles del árbol
+        getAllSignals(signal) {
+            if (!signal)
+                return [];
+            let signals = [];
+            // Añadir la señal actual si no es una señal derivada automáticamente
+            if (!signal.isBrokenDown) {
+                signals.push(signal.name);
+            }
+            // Recorrer los hijos recursivamente
+            if (signal.children) {
+                signal.children.forEach(child => {
+                    signals = signals.concat(this.getAllSignals(child));
+                });
+            }
+            // También recorrer los _children (nodos colapsados)
+            if (signal._children) {
+                signal._children.forEach(child => {
+                    signals = signals.concat(this.getAllSignals(child));
+                });
+            }
+            return signals;
+        }
+    }
+
+    class HelpPanel {
+        constructor(waveGraph) {
+            this.helpDialogId = 'd3-wave-help-dialog';
+            this.helpDialog = null;
+            /**
+             * Cierra el panel de ayuda al hacer clic fuera de él
+             */
+            this.closeOnClickOutside = (event) => {
+                if (this.helpDialog && event.target &&
+                    !this.helpDialog.contains(event.target) &&
+                    event.target !== this.helpDialog) {
+                    this.toggle();
+                    document.removeEventListener('click', this.closeOnClickOutside);
+                }
+            };
+            this.waveGraph = waveGraph;
+        }
+        /**
+         * Muestra u oculta el panel de ayuda
+         */
+        toggle() {
+            console.log('Toggle help panel');
+            // Si el diálogo ya existe, lo elimina (lo cierra)
+            const existingDialog = document.getElementById(this.helpDialogId);
+            if (existingDialog) {
+                document.body.removeChild(existingDialog);
+                this.helpDialog = null;
+                return;
+            }
+            // Si no existe, lo crea y muestra
+            this.showHelpDialog();
+        }
+        /**
+         * Crea y muestra el panel de ayuda
+         */
+        showHelpDialog() {
+            var _a;
+            // Crear un nuevo diálogo
+            this.helpDialog = document.createElement('div');
+            this.helpDialog.id = this.helpDialogId;
+            this.helpDialog.style.position = 'fixed';
+            this.helpDialog.style.top = '50%';
+            this.helpDialog.style.left = '50%';
+            this.helpDialog.style.transform = 'translate(-50%, -50%)';
+            this.helpDialog.style.backgroundColor = '#fff';
+            this.helpDialog.style.padding = '20px';
+            this.helpDialog.style.border = '1px solid #ccc';
+            this.helpDialog.style.borderRadius = '5px';
+            this.helpDialog.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+            this.helpDialog.style.zIndex = '1000';
+            this.helpDialog.style.maxWidth = '800px';
+            this.helpDialog.style.maxHeight = '80vh';
+            this.helpDialog.style.overflow = 'auto';
+            // Contenido de la ayuda
+            this.helpDialog.innerHTML = `
+      <h2 style="margin-top: 0; color: #333;">D3-Wave Help</h2>
+      
+      <h3>Navigation</h3>
+      <ul>
+        <li><strong>Pan:</strong> Click and drag on the main area to move the view horizontally.</li>
+        <li><strong>Zoom:</strong> Use mouse wheel or pinch gesture to zoom in and out.</li>
+        <li><strong>Reset View:</strong> Click the arrows icon in the toolbar to reset zoom and fit the content to the screen.</li>
+      </ul>
+      
+      <h3>Signal Management</h3>
+      <ul>
+        <li><strong>Filter Signals:</strong> Click the filter icon to open the signal filter panel.</li>
+        <li><strong>Expand/Collapse:</strong> Click the arrow next to a signal name to expand or collapse its children.</li>
+        <li><strong>Context Menu:</strong> Right-click on a signal name to access formatting options and other actions.</li>
+        <li><strong>Signal Breakdown:</strong> Right-click on multi-bit signals and select "Break down" to display individual bits.</li>
+      </ul>
+      
+      <h3>Signal Comparison</h3>
+      <ul>
+        <li><strong>Signals S and S*:</strong> These signals are automatically compared, and differences are highlighted.</li>
+        <li><strong>Bit-level Comparison:</strong> For multi-bit signals, individual bits are compared when broken down.</li>
+        <li><strong>Difference Highlighting:</strong>
+          <ul>
+            <li>Single-bit signals: Differences are marked with horizontal red lines.</li>
+            <li>Multi-bit signals: Differences are marked with diagonal red stripes.</li>
+          </ul>
+        </li>
+      </ul>
+      
+      <h3>Visual Elements</h3>
+      <ul>
+        <li><strong>Red Markings:</strong> Indicate differences between signals S and S*.</li>
+        <li><strong>Gray Areas:</strong> Represent invalid or unknown values (X, Z, etc.).</li>
+        <li><strong>Vertical Help Line:</strong> A guideline that follows your cursor for time reference.</li>
+      </ul>
+      
+      <h3>Other Features</h3>
+      <ul>
+        <li><strong>Download SVG:</strong> Click the download icon to save the current view as an SVG image.</li>
+        <li><strong>Regenerate Signals:</strong> Click the refresh icon to restore any signals that were removed.</li>
+        <li><strong>Resize Panels:</strong> Drag the divider between the signal names and waveforms to adjust the width.</li>
+      </ul>
+      
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="closeHelpButton" style="padding: 8px 16px; background-color: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+      </div>
+    `;
+            // Añadir el diálogo al body
+            document.body.appendChild(this.helpDialog);
+            // Agregar event listener para cerrar el diálogo
+            (_a = document.getElementById('closeHelpButton')) === null || _a === void 0 ? void 0 : _a.addEventListener('click', () => {
+                this.toggle();
+            });
+            // También cerrar al hacer clic fuera del diálogo
+        }
+    }
+
+    var css_248z = ".d3-wave .value-line {\r\n\tfill: none;\r\n\tstroke: lime;\r\n\tstroke-width: 1.5px;\r\n}\r\n\r\n.d3-wave .grid-line-x {\r\n\tstroke: lightgrey;\r\n\topacity: 0.7;\r\n\tstroke-dasharray: 5, 5;\r\n}\r\n\r\n.d3-wave .grid path {\r\n\tstroke-width: 0;\r\n}\r\n\r\n.d3-wave .value-rect-invalid path {\r\n\t/* fill: darkred; */\r\n\t/* stroke: red; */\r\n\tfill : rgb(82, 82, 82);\r\n\tstroke: gray;\r\n}\r\n\r\n.d3-wave .value-rect-invalid rect {\r\n\t/* fill: darkred; */\r\n\t/* stroke: red; */\r\n\tfill : rgb(82, 82, 82);\r\n\tstroke: gray;\r\n}\r\n\r\n.d3-wave .value-diff rect {\r\n\tfill: darkred; \r\n\tstroke: red; \r\n}\r\n\r\n.d3-wave .value-rect-valid path {\r\n\tfill: green;\r\n\tstroke: lime;\r\n}\r\n\r\n.d3-wave .value-rect-valid text {\r\n\ttext-anchor: middle;\r\n\tfill: white;\r\n}\r\n\r\n.d3-wave .value-rect-invalid text {\r\n\ttext-anchor: middle;\r\n\tfill: white;\r\n}\r\n\r\n.d3-wave {\r\n\tbackground-color: black;\r\n}\r\n\r\n.d3-wave .domain {\r\n\tstroke: yellow;\r\n\tstroke-width: 1.5px;\r\n\tshape-rendering: crispEdges;\r\n\tvector-effect: non-scaling-stroke;\r\n}\r\n\r\n.d3-wave .tick line {\r\n\tstroke-width: 1.5px;\r\n\tstroke: yellow;\r\n}\r\n\r\n.d3-wave .axis text {\r\n\tshape-rendering: crispEdges;\r\n\tfill: yellow;\r\n}\r\n\r\n\r\n.d3-wave .axis-y path {\r\n\tshape-rendering: crispEdges;\r\n\tfill: yellow;\r\n}\r\n\r\n.d3-wave .axis-y .highlight text {\r\n    fill: #ff751a;\r\n    font-weight: bold;\r\n}\r\n\r\n.d3-wave .scrollbar .mover {\r\n  fill: steelblue;\r\n  pointer-events: all;\r\n  cursor: ns-resize;\r\n  opacity: 0.5;\r\n}\r\n\r\n.d3-wave .scrollbar .subBar { \r\n  fill: gray;\r\n  opacity: 0.5;\r\n}\r\n\r\n.d3-wave .vertical-help-line {\r\n\tstroke: white;\r\n\tstroke-width: 2;\r\n}\r\n\r\n.d3-wave .labelcell.selected rect {\r\n\topacity: 30%;\r\n\tfill: aqua;\r\n}\r\n\r\n.d3-wave .labelcell text {\r\n\tcursor:grabbing;\r\n}\r\n\r\n.d3-wave .labelcell .expandable {\r\n\tcursor:pointer;\r\n}\r\n\r\n.d3-wave.tooltip {\t\r\n    position: absolute;\t\t\t\r\n    text-align: center;\t\t\t\r\n    width: 80px;\t\t\t\t\t\r\n    height: 40px;\t\t\t\t\t\r\n    padding: 2px;\t\t\t\t\r\n    font: 12px sans-serif;\t\t\r\n    background-color: lightsteelblue;\t\r\n    border: 0px;\t\t\r\n    border-radius: 8px;\t\t\t\r\n    pointer-events: none;\t\t\t\r\n}\r\n\r\n.d3-wave .axis .icons {\r\n    fill: white;\r\n}\r\n\r\n.d3-wave .value-background {\r\n\topacity: 0%;\r\n}\r\n.d3-wave .value-background.selected {\r\n\topacity: 30%;\r\n\tfill: aqua;\r\n}\r\n\r\n.filter-panel-container {\r\n\tposition: absolute;\r\n\tz-index: 1000;\r\n\tpointer-events: all;\r\n  }\r\n  \r\n  .filter-panel-container foreignObject {\r\n\toverflow: visible;\r\n  }\r\n  \r\n  .filter-panel-container div {\r\n\tfont-family: Arial, sans-serif;\r\n\tcolor: #333;\r\n  }\r\n  \r\n  .filter-panel-container h3 {\r\n\tfont-size: 14px;\r\n\tmargin-top: 0;\r\n\tmargin-bottom: 10px;\r\n  }\r\n  \r\n  .filter-panel-container label {\r\n\tfont-size: 13px;\r\n\ttransition: background-color 0.2s;\r\n  }\r\n  \r\n  .filter-panel-container label:hover {\r\n\tbackground-color: #f5f5f5;\r\n  }\r\n  \r\n  .filter-panel-container button {\r\n\ttransition: opacity 0.2s;\r\n  }\r\n  \r\n  .filter-panel-container button:hover {\r\n\topacity: 0.9;\r\n  }\r\n  \r\n  /* Estilo para señales seleccionadas/no seleccionadas */\r\n  .signal-filtered {\r\n\topacity: 0.4;\r\n  }\r\n\r\n";
     styleInject(css_248z);
 
     // main class which constructs the signal wave viewer
     class WaveGraph {
         constructor(svg) {
+            this.is_first_draw = true; // flag which indicates if the graph was already drawn
             this.svg = svg;
             svg.classed('d3-wave', true);
             this.dataG = svg.append('g');
@@ -1657,12 +2126,15 @@
                 new RowRendererLabel(this),
                 new RowRendererStruct(this),
                 new RowRendererArray(this),
+                new RowRendererAnnotation(this),
             ];
             this.timeZoom = null;
             this.labelAreaSizeDragBar = null;
             this.labelContextMenu = new SignalContextMenu(this);
             this.setSizes();
             this.treelist = null;
+            this.filterPanel = new SignalFilterPanel(this);
+            this.helpPanel = new HelpPanel(this);
         }
         _setZoom() {
             const timeRange = this.xRange;
@@ -1690,9 +2162,6 @@
                 .domain(this.xRange)
                 .range([0, sizes.width]);
             let zoomedScale = t.rescaleX(xAxisScale);
-            //if (zoomedScale.domain()[0] < 0) {
-            //	zoomedScale.domain([0, Math.max(zoomedScale.domain()[1], 0)])
-            //}
             const xAxis = this.xAxis;
             if (!xAxis)
                 return;
@@ -1701,6 +2170,7 @@
             // update tick formatter becase time range has changed
             // and we may want to use a different time unit
             xAxis.tickFormat(createTimeFormatterForTimeRange(this.sizes.row.range));
+            // Redibujar todo el gráfico para actualizar también las anotaciones
             this.draw();
         }
         /*
@@ -1830,7 +2300,10 @@
             const icons = [
                 {
                     'icon': freeSolidSvgIcons.faQuestion,
-                    'tooltip': 'd3-wave help placeholder[TODO]',
+                    'tooltip': 'd3-wave help placeholder',
+                    'onclick': function () {
+                        _this.helpPanel.toggle();
+                    }
                 },
                 {
                     'icon': freeSolidSvgIcons.faDownload,
@@ -1857,8 +2330,22 @@
                     'tooltip': 'Filter signals to display',
                     'onclick': function () {
                         // Implement filtering
+                        _this.filterPanel.toggle();
                     }
-                }
+                },
+                {
+                    'icon': freeSolidSvgIcons.faRefresh,
+                    'tooltip': 'Regenerate deleted signals',
+                    'onclick': function () {
+                        if (_this._allData) {
+                            _this.bindData(_this._allData);
+                        }
+                        else {
+                            console.error("No data available to bind");
+                        }
+                        _this.draw();
+                    }
+                },
             ];
             const tooltip = new Tooltip((d) => d.tooltip);
             if (!this.yAxisG)
@@ -1936,10 +2423,14 @@
                             throw new Error("Signal must have renderer already assinged");
                         }
                         signalType.renderer.render(parent, data, signalType, signalType.formatter);
+                        if (d.annotations && d.annotations.length > 0) {
+                            const annotationRenderer = new RowRendererAnnotation(graph);
+                            annotationRenderer.render(parent, data, signalType, signalType.formatter);
+                        }
                     }
                 });
             }
-            // move value row to it's possition
+            // move value row to it's possitionF
             var ROW_Y = sizes.row.height + sizes.row.ypadding;
             valueRows.enter()
                 .append('g')
@@ -1947,14 +2438,15 @@
                 .merge(valueRows)
                 .call(renderWaveRows)
                 .attr('transform', (d, i) => 'translate(0,' + (i * ROW_Y) + ')');
+            this.compareAndAnnotateSignals();
         }
-        addChildSignal(parentSignalName, newSignalData) {
-            var _a, _b;
+        addChildSignal(parentSignalName, newSignalData, removedSignals) {
+            var _a, _b, _c, _d;
             if (!this._allData) {
-                console.error("No data available to add a child signal");
+                //console.error("No data available to add a child signal");
                 throw new Error("No data available to add a child signal");
             }
-            console.log(`Searching for parent signal with name: ${parentSignalName}`);
+            //console.log(`Searching for parent signal with name: ${parentSignalName}`);
             function findSignalByName(signal, name) {
                 if (signal.name === name) {
                     return signal;
@@ -1971,10 +2463,10 @@
             }
             const parentSignal = findSignalByName(this._allData, parentSignalName);
             if (!parentSignal) {
-                console.error(`Parent signal with name ${parentSignalName} not found`);
+                //console.error(`Parent signal with name ${parentSignalName} not found`);
                 throw new Error(`Parent signal with name ${parentSignalName} not found`);
             }
-            console.log(`Parent signal found: ${parentSignal.name}`);
+            //console.log(`Parent signal found: ${parentSignal.name}`);
             if (!parentSignal.children) {
                 parentSignal.children = [];
             }
@@ -1988,8 +2480,6 @@
                 return;
             }
             const bitCount = firstBinaryValue.length - 1;
-            console.log(`Signal data string: ${signalDataString}`);
-            console.log(`Number of bits: ${bitCount}`);
             // Crear estructuras para cada señal de bit
             let bitSignals = [];
             for (let bitIndex = 0; bitIndex < bitCount; bitIndex++) {
@@ -2021,13 +2511,24 @@
             }
             // Agregar las señales hijas al padre
             parentSignal.children.push(...bitSignals);
+            this.data.push(...bitSignals);
+            //search in this.data the parent signal and add the new bitSignals
+            console.warn(`removedSignals: ${removedSignals.toString()}`);
+            let _allData2 = this._allData;
+            (_c = this.treelist) === null || _c === void 0 ? void 0 : _c.data(this._allData);
+            //filter the removed data by using the function treelist.filter
+            (_d = this.treelist) === null || _d === void 0 ? void 0 : _d.filter((d) => {
+                return !removedSignals.includes(d.name);
+            });
+            this._allData = _allData2;
+            this.draw();
             // Mostrar los datos generados
-            bitSignals.forEach(sig => {
+            /*bitSignals.forEach(sig => {
                 console.log(`Generated signal: ${sig.name}`);
                 console.log(`Data: ${JSON.stringify(sig.data)}`);
-            });
+            });*/
             // Actualizar los datos en la visualización
-            this.bindData(this._allData);
+            //this.bindData(this._allData);
         }
         bindData(_signalData) {
             if (_signalData.constructor !== Object) {
@@ -2083,11 +2584,301 @@
             if (!this.treelist)
                 throw new Error("treelist should be already allocated");
             this.treelist.data(this._allData);
+            this.labelContextMenu.autoBreakDownSignals();
+            this.labelContextMenu.autoBreakDownSignals();
         }
         zoomReset() {
             if (!this.timeZoom)
                 throw new Error("timeZoom was not initialized");
             this.dataG.call(this.timeZoom.transform, d3__namespace.zoomIdentity);
+        }
+        //zoomToTimeRange(start: number, end: number) {
+        //	if (!this.timeZoom)
+        //		throw new Error("timeZoom was not initialized");
+        //	d3.zoomTransform
+        //	this.dataG.call(this.timeZoom.scaleBy, d3.zoomIdentity)
+        //}
+        // Modifica el método compareAndAnnotateSignals para detectar rangos de diferencias
+        compareAndAnnotateSignals() {
+            if (!this._allData) {
+                console.error("No data available to compare signals");
+                return;
+            }
+            // Función para encontrar señales por nombre
+            const findSignalByName = (signal, name) => {
+                if (signal.name === name) {
+                    return signal;
+                }
+                if (signal.children) {
+                    for (const child of signal.children) {
+                        const found = findSignalByName(child, name);
+                        if (found) {
+                            return found;
+                        }
+                    }
+                }
+                return null;
+            };
+            // Buscar las señales S y S*
+            const signalS = findSignalByName(this._allData, 'S');
+            const signalStar = findSignalByName(this._allData, 'S*');
+            if (!signalS || !signalStar) {
+                console.error("Could not find both S and S* signals");
+                return;
+            }
+            if (signalS.type.width == 1 && signalStar.type.width == 1) {
+                // Reiniciar las anotaciones anteriores
+                signalS.annotations = [];
+                // Asegurarnos de que tenemos datos
+                if (!signalS.data.length || !signalStar.data.length) {
+                    console.warn("One or both signals have no data points");
+                    return;
+                }
+                // Encontrar el tiempo final (máximo) del rango visible
+                // Usamos explícitamente el tiempo final que se muestra en la gráfica
+                signalS.data[signalS.data.length - 1][0];
+                signalStar.data[signalStar.data.length - 1][0];
+                // Usar el rango de tiempo actual para extender el último diff correctamente
+                const visibleEndTime = this.sizes.row.range[1];
+                // Crear un mapa de valores para búsqueda rápida
+                const sStarValueMap = new Map();
+                signalStar.data.forEach(dataPoint => {
+                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
+                });
+                let inDiffRange = false;
+                let diffStartTime = 0;
+                // Verificar cada punto de datos de la señal S
+                for (let i = 0; i < signalS.data.length; i++) {
+                    const timeS = signalS.data[i][0];
+                    const valueS = signalS.data[i][1];
+                    // Obtener el valor correspondiente de S*
+                    let valueStar = sStarValueMap.get(timeS);
+                    if (valueStar === undefined) {
+                        // Si no hay un valor exacto, buscar el valor más cercano
+                        valueStar = this.findClosestValueBefore(signalStar.data, timeS);
+                    }
+                    const isDifferent = valueS !== valueStar;
+                    // Comenzar un nuevo rango de diferencia
+                    if (isDifferent && !inDiffRange) {
+                        diffStartTime = timeS;
+                        inDiffRange = true;
+                    }
+                    // Finalizar un rango de diferencia existente
+                    else if (!isDifferent && inDiffRange) {
+                        // Add a CSS class to indicate an invalid signal
+                        //mark the signal as .d3-wave .value-diff rect  for the range 
+                        signalS.annotations.push({
+                            time: (diffStartTime + timeS) / 2,
+                            startTime: diffStartTime,
+                            endTime: timeS,
+                            text: "diff",
+                            color: "#FF0000"
+                        });
+                        inDiffRange = false;
+                    }
+                    // Si es el último punto y todavía estamos en un rango de diferencia,
+                    // extenderlo hasta el final del rango visible
+                    if (i === signalS.data.length - 1 && inDiffRange) {
+                        signalS.annotations.push({
+                            time: (diffStartTime + visibleEndTime) / 2,
+                            startTime: diffStartTime,
+                            endTime: visibleEndTime,
+                            text: "diff",
+                            color: "#FF0000"
+                        });
+                    }
+                }
+                // Si no hemos añadido ninguna anotación pero sabemos que el último punto de S
+                // es diferente del último punto de S*, agregar una anotación final
+                if (signalS.annotations.length === 0) {
+                    const lastValueS = signalS.data[signalS.data.length - 1][1];
+                    const lastValueStar = signalStar.data[signalStar.data.length - 1][1];
+                    if (lastValueS !== lastValueStar) {
+                        const lastTimeS = signalS.data[signalS.data.length - 1][0];
+                        signalS.annotations.push({
+                            time: (lastTimeS + visibleEndTime) / 2,
+                            startTime: lastTimeS,
+                            endTime: visibleEndTime,
+                            text: "diff",
+                            color: "#FF0000"
+                        });
+                    }
+                }
+                // Asegurarse de que las anotaciones no comiencen antes del primer punto visible
+                const visibleStartTime = Math.max(0, this.sizes.row.range[0]);
+                signalS.annotations = signalS.annotations.map(annotation => {
+                    if (annotation.startTime !== undefined && annotation.startTime < visibleStartTime) {
+                        annotation.startTime = visibleStartTime;
+                    }
+                    return annotation;
+                });
+            }
+            else {
+                // Si las señales son diferente, se marcan con lineas rojas diagonales 
+                // Reiniciar las anotaciones anteriores
+                signalS.annotations = [];
+                // Asegurarnos de que tenemos datos
+                if (!signalS.data.length || !signalStar.data.length) {
+                    console.warn("One or both signals have no data points");
+                    return;
+                }
+                // Encontrar el tiempo final (máximo) del rango visible
+                // Usamos explícitamente el tiempo final que se muestra en la gráfica
+                signalS.data[signalS.data.length - 1][0];
+                signalStar.data[signalStar.data.length - 1][0];
+                // Usar el rango de tiempo actual para extender el último diff correctamente
+                const visibleEndTime = this.sizes.row.range[1];
+                // Crear un mapa de valores para búsqueda rápida
+                const sStarValueMap = new Map();
+                signalStar.data.forEach(dataPoint => {
+                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
+                });
+                let inDiffRange = false;
+                let diffStartTime = 0;
+                // Verificar cada punto de datos de la señal S
+                for (let i = 0; i < signalS.data.length; i++) {
+                    const timeS = signalS.data[i][0];
+                    const valueS = signalS.data[i][1];
+                    // Obtener el valor correspondiente de S*
+                    let valueStar = sStarValueMap.get(timeS);
+                    if (valueStar === undefined) {
+                        // Si no hay un valor exacto, buscar el valor más cercano
+                        valueStar = this.findClosestValueBefore(signalStar.data, timeS);
+                    }
+                    const isDifferent = valueS !== valueStar;
+                    // Comenzar un nuevo rango de diferencia
+                    if (isDifferent && !inDiffRange) {
+                        diffStartTime = timeS;
+                        inDiffRange = true;
+                    }
+                    // Finalizar un rango de diferencia existente
+                    else if (!isDifferent && inDiffRange) {
+                        // Add a CSS class to indicate an invalid signal
+                        //mark the signal as .d3-wave .value-diff rect  for the range 
+                        signalS.annotations.push({
+                            time: (diffStartTime + timeS) / 2,
+                            startTime: diffStartTime,
+                            endTime: timeS,
+                            text: "",
+                            color: "#FF0000"
+                        });
+                        inDiffRange = false;
+                    }
+                    // Si es el último punto y todavía estamos en un rango de diferencia,
+                    // extenderlo hasta el final del rango visible
+                    if (i === signalS.data.length - 1 && inDiffRange) {
+                        signalS.annotations.push({
+                            time: (diffStartTime + visibleEndTime) / 2,
+                            startTime: diffStartTime,
+                            endTime: visibleEndTime,
+                            text: "",
+                            color: "#FF0000"
+                        });
+                    }
+                }
+                // Si no hemos añadido ninguna anotación pero sabemos que el último punto de S
+                // es diferente del último punto de S*, agregar una anotación final
+                if (signalS.annotations.length === 0) {
+                    const lastValueS = signalS.data[signalS.data.length - 1][1];
+                    const lastValueStar = signalStar.data[signalStar.data.length - 1][1];
+                    if (lastValueS !== lastValueStar) {
+                        const lastTimeS = signalS.data[signalS.data.length - 1][0];
+                        signalS.annotations.push({
+                            time: (lastTimeS + visibleEndTime) / 2,
+                            startTime: lastTimeS,
+                            endTime: visibleEndTime,
+                            text: "",
+                            color: "#FF0000"
+                        });
+                    }
+                }
+                // Asegurarse de que las anotaciones no comiencen antes del primer punto visible
+                const visibleStartTime = Math.max(0, this.sizes.row.range[0]);
+                signalS.annotations = signalS.annotations.map(annotation => {
+                    if (annotation.startTime !== undefined && annotation.startTime < visibleStartTime) {
+                        annotation.startTime = visibleStartTime;
+                    }
+                    return annotation;
+                });
+                this.compareChildSignals(signalS, signalStar);
+            }
+        }
+        compareChildSignals(signalS, signalStar) {
+            if (!signalS.children || !signalStar.children) {
+                return;
+            }
+            // Comparar cada señal bit a bit
+            for (let i = 0; i < signalS.children.length; i++) {
+                const bitSignalS = signalS.children[i];
+                // Buscar la señal correspondiente en S*
+                const bitIndexMatch = bitSignalS.name.match(/_bit(\d+)$/);
+                if (!bitIndexMatch)
+                    continue;
+                const bitIndex = bitIndexMatch[1];
+                const bitSignalStar = signalStar.children.find(child => child.name.includes(`_bit${bitIndex}`));
+                if (!bitSignalStar)
+                    continue;
+                // Reiniciar las anotaciones
+                bitSignalS.annotations = [];
+                // Crear un mapa de valores para búsqueda rápida
+                const sStarValueMap = new Map();
+                bitSignalStar.data.forEach(dataPoint => {
+                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
+                });
+                let inDiffRange = false;
+                let diffStartTime = 0;
+                const visibleEndTime = this.sizes.row.range[1];
+                // Verificar cada punto de datos del bit
+                for (let j = 0; j < bitSignalS.data.length; j++) {
+                    const timeS = bitSignalS.data[j][0];
+                    const valueS = bitSignalS.data[j][1];
+                    // Obtener el valor correspondiente de S* bit
+                    let valueStar = sStarValueMap.get(timeS);
+                    if (valueStar === undefined) {
+                        // Si no hay un valor exacto, buscar el valor más cercano
+                        valueStar = this.findClosestValueBefore(bitSignalStar.data, timeS);
+                    }
+                    const isDifferent = valueS !== valueStar;
+                    // Comenzar un nuevo rango de diferencia
+                    if (isDifferent && !inDiffRange) {
+                        diffStartTime = timeS;
+                        inDiffRange = true;
+                    }
+                    // Finalizar un rango de diferencia existente
+                    else if (!isDifferent && inDiffRange) {
+                        bitSignalS.annotations.push({
+                            time: (diffStartTime + timeS) / 2,
+                            startTime: diffStartTime,
+                            endTime: timeS,
+                            text: "diff",
+                            color: "#FF0000"
+                        });
+                        inDiffRange = false;
+                    }
+                    // Si es el último punto y todavía estamos en un rango de diferencia
+                    if (j === bitSignalS.data.length - 1 && inDiffRange) {
+                        bitSignalS.annotations.push({
+                            time: (diffStartTime + visibleEndTime) / 2,
+                            startTime: diffStartTime,
+                            endTime: visibleEndTime,
+                            text: "diff",
+                            color: "#FF0000"
+                        });
+                    }
+                }
+            }
+        }
+        // Método auxiliar para encontrar el valor más cercano antes de un tiempo dado
+        findClosestValueBefore(data, time) {
+            let closestTime = -Infinity;
+            let closestValue = null;
+            for (const point of data) {
+                if (point[0] <= time && point[0] > closestTime) {
+                    closestTime = point[0];
+                    closestValue = point[1];
+                }
+            }
+            return closestValue;
         }
     }
 

@@ -12,27 +12,31 @@ function genFormatter(newBase: number): (d: NumbericDataValue) => string {
 	return function (d: NumbericDataValue) {
 		if (typeof d === 'number')
 			return d.toString(newBase);
-		if (d === "X")
+		if (d === "X" || d === "Z" || d === "W" || d === "U" || d === "L" || d === "H" || d === "_"){
 			return d;
+		}
 		let baseChar: string = d[0];
 		d = d.substring(1);
 		let base: number = NUM_FORMATS[baseChar];
 		if (base === newBase) { return d; }
 		d = d.toUpperCase();
-		let containsX = d.indexOf('X') >= 0;
-		if (containsX && newBase === 10) { return 'X'; }
+		let containsXZWULH_ = /[XZWULH_]/.test(d);
+		if (containsXZWULH_ && newBase === 10) { return d; }
 
 		let origD = d;
-		if (containsX) {
-			d = d.replace(/X/g, '0');
+		if (containsXZWULH_) {
+			// remove XZWULH_ chars from d
+			d = d.replace(/X|Z|W|U|L|H|_/g, '');
+			if (d === '') { return 'X'; } // all invalid digits
 		}
 
 		let num = BigInt('0' + baseChar + d).toString(newBase);
 
+
 		if (newBase === 2) { newBase = 1; }
 		if (base === 2) { base = 1; }
 
-		if (containsX) {
+		if (containsXZWULH_) {
 			let _num = [];
 			for (let i = 0; i < num.length; i++) {
 				_num.push(num[i]);
@@ -44,7 +48,7 @@ function genFormatter(newBase: number): (d: NumbericDataValue) => string {
 				for (let i = 0; i < num.length; i++) {
 					let offset = i * digitRatio;
 					for (var i2 = 0; i2 < digitRatio; i2++) {
-						if (origD[offset + i2] === 'X') {
+						if (origD[offset + i2] === 'X' ) {
 							// invalidate corresponding digit if there was a X in original value
 							_num[i] = 'X';
 							break;

@@ -3,13 +3,37 @@ import { ContextMenu, ContextMenuItem } from './contextMenu';
 import type { HierarchyNodeWaveGraphSignalWithXYId } from './treeList';
 import { WaveGraphSignal, SignalDataValueTuple } from './data'
 import { Sign } from 'crypto';
+import { format } from 'path';
 
 
 export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalWithXYId> {
 	waveGraph: WaveGraph;
+	removedSignals: string[] = [];
 	constructor(waveGraph: WaveGraph) {
 		super();
 		this.waveGraph = waveGraph;
+	}
+
+	autoBreakDownSignals() {
+		const targets = ["S", "S*"];
+		this.waveGraph.treelist?.visibleNodes().forEach((node) => {
+			if (targets.some(target => node.data.name === target) && !node.data.isBrokenDown && node.data.type.name !== "array") {
+				const parentType = node.data.type;
+				const parentData = node.data.data;
+				const parentSignalName = node.data.name;
+				const parentIsBrokenDown = true;
+
+				const newSignalData: WaveGraphSignal = {
+					name: `${parentSignalName} Child`,
+					type: parentType,
+					data: parentData,
+					isBrokenDown: parentIsBrokenDown,
+				};
+
+				this.waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
+				node.data.isBrokenDown = true;
+			}
+		});
 	}
 
 	getMenuItems(d: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>): ContextMenuItem<any>[] {
@@ -55,13 +79,15 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 			new ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>(
 				'Remove',
 				d.data,
-				[], false, false,
+				[], false, 
+				/* disabled */ d.data.data.name.match(/Child_bit\d+/) !== null,
 				/*action*/(cm: ContextMenu<HierarchyNodeWaveGraphSignalWithXYId>,
 					elm: SVGGElement,
 					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
 					index: number) => {
 					console.log('Remove signal type', d.data.data.type);
 					console.log('Remove signal type', d.data.data.type.name);
+					this.removedSignals.push(d.data.data.name);
 					d.data.data.type.isSelected = true;
 					return waveGraph.treelist?.filter((d) => {
 						return !d.type.isSelected;
@@ -81,7 +107,7 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 				d.data,
 				[],
 				/* divider */ false,
-				/* disabled */ d.data.data.isBrokenDown || formatOptions.length == 0,
+				/* disabled */ (d.data.data.isBrokenDown || (d.data.data.type.name == 'array')) || formatOptions.length == 0,
 				/*action*/(cm: ContextMenu<HierarchyNodeWaveGraphSignalWithXYId>,
 					elm: SVGGElement,
 					data: ContextMenuItem<HierarchyNodeWaveGraphSignalWithXYId>,
@@ -101,7 +127,7 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 						isBrokenDown: parentIsBrokenDown,
 					};
 
-					waveGraph.addChildSignal(parentSignalName, newSignalData);
+					waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
 					d.data.data.isBrokenDown = true;
 				}
 			),

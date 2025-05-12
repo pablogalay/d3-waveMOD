@@ -24,7 +24,8 @@ export class RowRendererBit extends RowRendererBase {
 			let val = d[1];
 			let valInt = NaN;
 			if (typeof val === 'string') {
-				if (val.indexOf('X') >= 0) {
+				if (val.indexOf('X') >= 0 || val.indexOf('Z') >= 0 || val.indexOf('W') >= 0 || val.indexOf('U') >= 0 || val.indexOf('L') >= 0 || val.indexOf('H') >= 0 || val.indexOf('_') >= 0) {
+					d[1] = 'X';
 					invalidRanges.push(d);
 					return;
 				} else {

@@ -34,6 +34,7 @@ export class TreeList {
 	contextMenu: SignalContextMenu;
 	nodes:HierarchyNodeWaveGraphSignalWithXYId[];
 	_onChange: ((nodes: HierarchyNodeWaveGraphSignalWithXYId[]) => void) | null;
+	currentFilter: ((d: WaveGraphSignal) => boolean) | null;
 
 	constructor(barHeight: number, contextMenu: SignalContextMenu) {
 		this.barHeight = barHeight;
@@ -48,6 +49,7 @@ export class TreeList {
 		this._onChange = null;
 		this.nodes = [];
 		this.labelMoving = new SignalLabelManipulation(barHeight, this);
+		this.currentFilter = null;
 	}
 
 	public static getExpandCollapseIcon(d: HierarchyNodeWaveGraphSignalWithXYId) {
@@ -207,6 +209,7 @@ export class TreeList {
 	filter(predicate: (d: WaveGraphSignal) => boolean) {
 		if (!this.root)
 			return;
+		this.currentFilter = predicate;
 		function remove(d: HierarchyNodeWaveGraphSignalWithXYId) {
 			if (d.parent) {
 				if (!d.parent.children) {
@@ -231,6 +234,22 @@ export class TreeList {
 			this.update();
 		}
 	}
+
+	public getFilter(): ((d: WaveGraphSignal) => boolean) | null {
+		return this.currentFilter;
+	}
+
+	public resetFilter(): void {
+		// Eliminar el filtro actual
+		this.currentFilter = null;
+		
+		// Si tenemos datos originales, reconstruir la jerarquía
+		if (this.root && this.root.data) {
+		  // Reconstruir el árbol completo
+		  this.data(this.root.data);
+		}
+	}
+
 	update() {
 		this.resolveSelection();
 		if (!this.labelG)

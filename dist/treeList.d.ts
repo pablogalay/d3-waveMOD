@@ -21,6 +21,7 @@ export declare class TreeList {
     contextMenu: SignalContextMenu;
     nodes: HierarchyNodeWaveGraphSignalWithXYId[];
     _onChange: ((nodes: HierarchyNodeWaveGraphSignalWithXYId[]) => void) | null;
+    currentFilter: ((d: WaveGraphSignal) => boolean) | null;
     constructor(barHeight: number, contextMenu: SignalContextMenu);
     static getExpandCollapseIcon(d: HierarchyNodeWaveGraphSignalWithXYId): import("@fortawesome/fontawesome-common-types").IconPathData;
     registerExpandHandler<GElement extends SVGElement, PElement extends SVGElement, PDatum>(elm: d3.Selection<GElement, HierarchyNodeWaveGraphSignalWithXYId, PElement, PDatum>): d3.Selection<GElement, HierarchyNodeWaveGraphSignalWithXYId, PElement, PDatum>;
@@ -34,6 +35,8 @@ export declare class TreeList {
     onChange(fn: ((nodes: HierarchyNodeWaveGraphSignalWithXYId[]) => void) | null): this | ((nodes: HierarchyNodeWaveGraphSignalWithXYId[]) => void) | null;
     visibleNodes(): HierarchyNodeWaveGraphSignalWithXYId[];
     filter(predicate: (d: WaveGraphSignal) => boolean): void;
+    getFilter(): ((d: WaveGraphSignal) => boolean) | null;
+    resetFilter(): void;
     update(): void;
 }
 export { WaveGraphSignal };

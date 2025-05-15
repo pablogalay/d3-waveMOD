@@ -89,26 +89,19 @@ export class RowRendererAnnotation extends RowRendererBase {
               .attr('pointer-events', 'none');
           } else {
             // Para señales de un bit, usar líneas horizontales
-            // Línea antes de la palabra
+            // Línea sin palabra
             annotationsGroup.append('line')
               .attr('x1', startX)
-              .attr('y1', lineY + 15)
-              .attr('x2', x - textWidth / 2)
-              .attr('y2', lineY + 15)
-              .attr('stroke', annotation.color)
-              .attr('stroke-width', 2);
-
-            // Línea después de la palabra
-            annotationsGroup.append('line')
-              .attr('x1', x + textWidth / 2)
-              .attr('y1', lineY + 15)
+              .attr('y1', lineY + 15) 
               .attr('x2', endX)
               .attr('y2', lineY + 15)
               .attr('stroke', annotation.color)
-              .attr('stroke-width', 2);
+              .attr('stroke-width', 2)
+              .attr('pointer-events', 'none');
+            
           }
 
-          // Añadir la etiqueta de texto en el centro del rango
+          /*// Añadir la etiqueta de texto en el centro del rango
           annotationsGroup.append('text')
             .attr('x', x)
             .attr('y', isMultiBit ? waveRowHeight / 2 : lineY + 18)
@@ -116,7 +109,7 @@ export class RowRendererAnnotation extends RowRendererBase {
             .attr('font-size', '10px')
             .attr('fill', annotation.color)
             .attr('font-weight', 'bold')
-            .text(annotation.text);
+            .text(annotation.text);*/
         }
       }
     });

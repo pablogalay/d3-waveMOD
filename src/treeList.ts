@@ -71,19 +71,51 @@ export class TreeList {
 	}
 	clickExpandCollapse(ev: any, d: HierarchyNodeWaveGraphSignalWithXYId, elm: SVGElement) {
 		ev.stopPropagation();
-		if (d.children || d._children) {
-			if (d.children) {
-				d._children = d.children;
-				d.children = undefined;
-			} else {
-				d.children = d._children;
-				d._children = undefined;
+		const toggleChildren = (node: HierarchyNodeWaveGraphSignalWithXYId) => {
+			if (node.children || node._children) {
+				if (node.children) {
+					node._children = node.children;
+					node.children = undefined;
+				} else {
+					node.children = node._children;
+					node._children = undefined;
+				}
 			}
-			d3.select<SVGElement, HierarchyNodeWaveGraphSignalWithXYId>(elm.parentElement as any as SVGElement)
+		};
+
+		// Toggle the clicked node
+		toggleChildren(d);
+
+		// Find the paired node and toggle it as well
+		let pairedNode: HierarchyNodeWaveGraphSignalWithXYId | undefined;
+		
+		if (this.root) {
+			const pairedName = d.data.name.endsWith('*')
+				? d.data.name.slice(0, -1)
+				: `${d.data.name}*`;
+
+			this.root.eachBefore((node) => {
+				if (node.data.name === pairedName) {
+					toggleChildren(node);
+					pairedNode = node;
+				}
+			});
+		}
+
+		// Update the icon for the clicked node
+		d3.select<SVGElement, HierarchyNodeWaveGraphSignalWithXYId>(elm.parentElement as any as SVGElement)
+			.select('path')
+			.attr('d', TreeList.getExpandCollapseIcon);
+		
+		// Update the icon for the paired node if found
+		if (pairedNode) {
+			this.labelG?.selectAll<SVGPathElement, HierarchyNodeWaveGraphSignalWithXYId>(`.labelcell`)
+				.filter(node => node.id === pairedNode?.id)
 				.select('path')
 				.attr('d', TreeList.getExpandCollapseIcon);
-			this.update();
 		}
+		
+		this.update();
 	}
 	resolveSelection() {
 		// Compute the flattened node list.

@@ -804,14 +804,13 @@
             const waveRowHeight = this.waveGraph.sizes.row.height;
             // Dibujar las anotaciones según el tipo de señal
             signal.annotations.forEach(annotation => {
-                const x = waveRowX(annotation.time);
+                waveRowX(annotation.time);
                 if (annotation.startTime !== undefined && annotation.endTime !== undefined) {
                     const startX = Math.max(waveRowX(annotation.startTime), 0);
                     const endX = waveRowX(annotation.endTime);
                     // Determinar el tipo de anotación según el ancho de la señal
                     const isMultiBit = signal.type.width != 1;
                     const lineY = signal.type.name === 'wire' ? -5 : -10;
-                    const textWidth = 20;
                     if (startX < endX) {
                         if (isMultiBit) {
                             // Para señales multi-bit, usar líneas diagonales
@@ -843,32 +842,25 @@
                         }
                         else {
                             // Para señales de un bit, usar líneas horizontales
-                            // Línea antes de la palabra
+                            // Línea sin palabra
                             annotationsGroup.append('line')
                                 .attr('x1', startX)
-                                .attr('y1', lineY + 15)
-                                .attr('x2', x - textWidth / 2)
-                                .attr('y2', lineY + 15)
-                                .attr('stroke', annotation.color)
-                                .attr('stroke-width', 2);
-                            // Línea después de la palabra
-                            annotationsGroup.append('line')
-                                .attr('x1', x + textWidth / 2)
                                 .attr('y1', lineY + 15)
                                 .attr('x2', endX)
                                 .attr('y2', lineY + 15)
                                 .attr('stroke', annotation.color)
-                                .attr('stroke-width', 2);
+                                .attr('stroke-width', 2)
+                                .attr('pointer-events', 'none');
                         }
-                        // Añadir la etiqueta de texto en el centro del rango
+                        /*// Añadir la etiqueta de texto en el centro del rango
                         annotationsGroup.append('text')
-                            .attr('x', x)
-                            .attr('y', isMultiBit ? waveRowHeight / 2 : lineY + 18)
-                            .attr('text-anchor', 'middle')
-                            .attr('font-size', '10px')
-                            .attr('fill', annotation.color)
-                            .attr('font-weight', 'bold')
-                            .text(annotation.text);
+                          .attr('x', x)
+                          .attr('y', isMultiBit ? waveRowHeight / 2 : lineY + 18)
+                          .attr('text-anchor', 'middle')
+                          .attr('font-size', '10px')
+                          .attr('fill', annotation.color)
+                          .attr('font-weight', 'bold')
+                          .text(annotation.text);*/
                     }
                 }
             });
@@ -1075,21 +1067,44 @@
             return elm;
         }
         clickExpandCollapse(ev, d, elm) {
+            var _a;
             ev.stopPropagation();
-            if (d.children || d._children) {
-                if (d.children) {
-                    d._children = d.children;
-                    d.children = undefined;
+            const toggleChildren = (node) => {
+                if (node.children || node._children) {
+                    if (node.children) {
+                        node._children = node.children;
+                        node.children = undefined;
+                    }
+                    else {
+                        node.children = node._children;
+                        node._children = undefined;
+                    }
                 }
-                else {
-                    d.children = d._children;
-                    d._children = undefined;
-                }
-                d3__namespace.select(elm.parentElement)
-                    .select('path')
-                    .attr('d', TreeList.getExpandCollapseIcon);
-                this.update();
+            };
+            // Toggle the clicked node
+            toggleChildren(d);
+            // Find the paired node and toggle it as well
+            let pairedNode;
+            if (this.root) {
+                const pairedName = d.data.name.endsWith('*')
+                    ? d.data.name.slice(0, -1)
+                    : `${d.data.name}*`;
+                this.root.eachBefore((node) => {
+                    if (node.data.name === pairedName) {
+                        toggleChildren(node);
+                        pairedNode = node;
+                    }
+                });
             }
+            // Update the icon for the clicked node
+            d3__namespace.select(elm.parentElement)
+                .select('path')
+                .attr('d', TreeList.getExpandCollapseIcon);
+            // Update the icon for the paired node if found
+            if (pairedNode) {
+                (_a = this.labelG) === null || _a === void 0 ? void 0 : _a.selectAll(`.labelcell`).filter(node => node.id === (pairedNode === null || pairedNode === void 0 ? void 0 : pairedNode.id)).select('path').attr('d', TreeList.getExpandCollapseIcon);
+            }
+            this.update();
         }
         resolveSelection() {
             // Compute the flattened node list.
@@ -1698,6 +1713,7 @@
                 /* divider */ false, 
                 /* disabled */ (d.data.data.isBrokenDown || (d.data.data.type.name == 'array')) || formatOptions.length == 0, 
                 /*action*/ (cm, elm, data, index) => {
+                    var _a;
                     if (d.data.data.isBrokenDown) {
                         console.log('Signal has already been broken down', d.data.data.name);
                         return;
@@ -1714,6 +1730,22 @@
                     };
                     waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
                     d.data.data.isBrokenDown = true;
+                    // Check for related signals with or without '*'
+                    const relatedSignalName = parentSignalName.endsWith('*')
+                        ? parentSignalName.slice(0, -1)
+                        : `${parentSignalName}*`;
+                    (_a = waveGraph.treelist) === null || _a === void 0 ? void 0 : _a.visibleNodes().forEach((node) => {
+                        if (node.data.name === relatedSignalName && !node.data.isBrokenDown) {
+                            const relatedSignalData = {
+                                name: `${relatedSignalName} Child`,
+                                type: node.data.type,
+                                data: node.data.data,
+                                isBrokenDown: true,
+                            };
+                            waveGraph.addChildSignal(relatedSignalName, relatedSignalData, this.removedSignals);
+                            node.data.isBrokenDown = true;
+                        }
+                    });
                 }),
             ];
         }
@@ -2044,7 +2076,7 @@
       <h3>Navigation</h3>
       <ul>
         <li><strong>Pan:</strong> Click and drag on the main area to move the view horizontally.</li>
-        <li><strong>Zoom:</strong> Use mouse wheel or pinch gesture to zoom in and out.</li>
+        <li><strong>Zoom:</strong> Use mouse wheel to zoom in and out.</li>
         <li><strong>Reset View:</strong> Click the arrows icon in the toolbar to reset zoom and fit the content to the screen.</li>
       </ul>
       
@@ -2513,7 +2545,7 @@
             parentSignal.children.push(...bitSignals);
             this.data.push(...bitSignals);
             //search in this.data the parent signal and add the new bitSignals
-            console.warn(`removedSignals: ${removedSignals.toString()}`);
+            //console.warn(`removedSignals: ${removedSignals.toString()}`);
             let _allData2 = this._allData;
             (_c = this.treelist) === null || _c === void 0 ? void 0 : _c.data(this._allData);
             //filter the removed data by using the function treelist.filter
@@ -2584,8 +2616,8 @@
             if (!this.treelist)
                 throw new Error("treelist should be already allocated");
             this.treelist.data(this._allData);
-            this.labelContextMenu.autoBreakDownSignals();
-            this.labelContextMenu.autoBreakDownSignals();
+            //this.labelContextMenu.autoBreakDownSignals();
+            //this.labelContextMenu.autoBreakDownSignals();
         }
         zoomReset() {
             if (!this.timeZoom)
@@ -2604,264 +2636,222 @@
                 console.error("No data available to compare signals");
                 return;
             }
-            // Función para encontrar señales por nombre
-            const findSignalByName = (signal, name) => {
-                if (signal.name === name) {
-                    return signal;
+            // Recopilar todas las señales
+            const allSignals = this.getAllSignals(this._allData);
+            // Buscar todas las señales con asterisco en su nombre
+            const starSignals = allSignals.filter(signal => signal.name.endsWith('*'));
+            // Para cada señal con asterisco, encontrar su correspondiente sin asterisco
+            starSignals.forEach(starSignal => {
+                const baseName = starSignal.name.substring(0, starSignal.name.length - 1);
+                const baseSignal = allSignals.find(signal => signal.name === baseName);
+                if (baseSignal) {
+                    //console.log(`Comparing signals: ${baseSignal.name} and ${starSignal.name}`);
+                    // Comparar y anotar las diferencias entre las señales
+                    this.compareSignalPair(baseSignal, starSignal);
                 }
-                if (signal.children) {
-                    for (const child of signal.children) {
-                        const found = findSignalByName(child, name);
-                        if (found) {
-                            return found;
-                        }
-                    }
+            });
+        }
+        // Método para obtener todas las señales en una estructura plana
+        getAllSignals(signal) {
+            let result = [signal];
+            if (signal.children) {
+                for (const child of signal.children) {
+                    result = result.concat(this.getAllSignals(child));
                 }
-                return null;
-            };
-            // Buscar las señales S y S*
-            const signalS = findSignalByName(this._allData, 'S');
-            const signalStar = findSignalByName(this._allData, 'S*');
-            if (!signalS || !signalStar) {
-                console.error("Could not find both S and S* signals");
+            }
+            return result;
+        }
+        // Método para comparar una pareja de señales
+        compareSignalPair(signalBase, signalStar) {
+            // Reiniciar las anotaciones anteriores para S* en lugar de S
+            signalStar.annotations = [];
+            // Asegurarnos de que tenemos datos
+            if (!signalBase.data.length || !signalStar.data.length) {
+                console.warn(`One or both signals have no data points: ${signalBase.name}, ${signalStar.name}`);
                 return;
             }
-            if (signalS.type.width == 1 && signalStar.type.width == 1) {
-                // Reiniciar las anotaciones anteriores
-                signalS.annotations = [];
-                // Asegurarnos de que tenemos datos
-                if (!signalS.data.length || !signalStar.data.length) {
-                    console.warn("One or both signals have no data points");
-                    return;
-                }
-                // Encontrar el tiempo final (máximo) del rango visible
-                // Usamos explícitamente el tiempo final que se muestra en la gráfica
-                signalS.data[signalS.data.length - 1][0];
-                signalStar.data[signalStar.data.length - 1][0];
-                // Usar el rango de tiempo actual para extender el último diff correctamente
-                const visibleEndTime = this.sizes.row.range[1];
-                // Crear un mapa de valores para búsqueda rápida
-                const sStarValueMap = new Map();
-                signalStar.data.forEach(dataPoint => {
-                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
-                });
-                let inDiffRange = false;
-                let diffStartTime = 0;
-                // Verificar cada punto de datos de la señal S
-                for (let i = 0; i < signalS.data.length; i++) {
-                    const timeS = signalS.data[i][0];
-                    const valueS = signalS.data[i][1];
-                    // Obtener el valor correspondiente de S*
-                    let valueStar = sStarValueMap.get(timeS);
-                    if (valueStar === undefined) {
-                        // Si no hay un valor exacto, buscar el valor más cercano
-                        valueStar = this.findClosestValueBefore(signalStar.data, timeS);
-                    }
-                    const isDifferent = valueS !== valueStar;
-                    // Comenzar un nuevo rango de diferencia
-                    if (isDifferent && !inDiffRange) {
-                        diffStartTime = timeS;
-                        inDiffRange = true;
-                    }
-                    // Finalizar un rango de diferencia existente
-                    else if (!isDifferent && inDiffRange) {
-                        // Add a CSS class to indicate an invalid signal
-                        //mark the signal as .d3-wave .value-diff rect  for the range 
-                        signalS.annotations.push({
-                            time: (diffStartTime + timeS) / 2,
-                            startTime: diffStartTime,
-                            endTime: timeS,
-                            text: "diff",
-                            color: "#FF0000"
-                        });
-                        inDiffRange = false;
-                    }
-                    // Si es el último punto y todavía estamos en un rango de diferencia,
-                    // extenderlo hasta el final del rango visible
-                    if (i === signalS.data.length - 1 && inDiffRange) {
-                        signalS.annotations.push({
-                            time: (diffStartTime + visibleEndTime) / 2,
-                            startTime: diffStartTime,
-                            endTime: visibleEndTime,
-                            text: "diff",
-                            color: "#FF0000"
-                        });
-                    }
-                }
-                // Si no hemos añadido ninguna anotación pero sabemos que el último punto de S
-                // es diferente del último punto de S*, agregar una anotación final
-                if (signalS.annotations.length === 0) {
-                    const lastValueS = signalS.data[signalS.data.length - 1][1];
-                    const lastValueStar = signalStar.data[signalStar.data.length - 1][1];
-                    if (lastValueS !== lastValueStar) {
-                        const lastTimeS = signalS.data[signalS.data.length - 1][0];
-                        signalS.annotations.push({
-                            time: (lastTimeS + visibleEndTime) / 2,
-                            startTime: lastTimeS,
-                            endTime: visibleEndTime,
-                            text: "diff",
-                            color: "#FF0000"
-                        });
-                    }
-                }
-                // Asegurarse de que las anotaciones no comiencen antes del primer punto visible
-                const visibleStartTime = Math.max(0, this.sizes.row.range[0]);
-                signalS.annotations = signalS.annotations.map(annotation => {
-                    if (annotation.startTime !== undefined && annotation.startTime < visibleStartTime) {
-                        annotation.startTime = visibleStartTime;
-                    }
-                    return annotation;
-                });
+            if (signalBase.type.width == 1 && signalStar.type.width == 1) {
+                this.compareUnibitSignals(signalBase, signalStar);
             }
             else {
-                // Si las señales son diferente, se marcan con lineas rojas diagonales 
-                // Reiniciar las anotaciones anteriores
-                signalS.annotations = [];
-                // Asegurarnos de que tenemos datos
-                if (!signalS.data.length || !signalStar.data.length) {
-                    console.warn("One or both signals have no data points");
-                    return;
-                }
-                // Encontrar el tiempo final (máximo) del rango visible
-                // Usamos explícitamente el tiempo final que se muestra en la gráfica
-                signalS.data[signalS.data.length - 1][0];
-                signalStar.data[signalStar.data.length - 1][0];
-                // Usar el rango de tiempo actual para extender el último diff correctamente
-                const visibleEndTime = this.sizes.row.range[1];
-                // Crear un mapa de valores para búsqueda rápida
-                const sStarValueMap = new Map();
-                signalStar.data.forEach(dataPoint => {
-                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
-                });
-                let inDiffRange = false;
-                let diffStartTime = 0;
-                // Verificar cada punto de datos de la señal S
-                for (let i = 0; i < signalS.data.length; i++) {
-                    const timeS = signalS.data[i][0];
-                    const valueS = signalS.data[i][1];
-                    // Obtener el valor correspondiente de S*
-                    let valueStar = sStarValueMap.get(timeS);
-                    if (valueStar === undefined) {
-                        // Si no hay un valor exacto, buscar el valor más cercano
-                        valueStar = this.findClosestValueBefore(signalStar.data, timeS);
-                    }
-                    const isDifferent = valueS !== valueStar;
-                    // Comenzar un nuevo rango de diferencia
-                    if (isDifferent && !inDiffRange) {
-                        diffStartTime = timeS;
-                        inDiffRange = true;
-                    }
-                    // Finalizar un rango de diferencia existente
-                    else if (!isDifferent && inDiffRange) {
-                        // Add a CSS class to indicate an invalid signal
-                        //mark the signal as .d3-wave .value-diff rect  for the range 
-                        signalS.annotations.push({
-                            time: (diffStartTime + timeS) / 2,
-                            startTime: diffStartTime,
-                            endTime: timeS,
-                            text: "",
-                            color: "#FF0000"
-                        });
-                        inDiffRange = false;
-                    }
-                    // Si es el último punto y todavía estamos en un rango de diferencia,
-                    // extenderlo hasta el final del rango visible
-                    if (i === signalS.data.length - 1 && inDiffRange) {
-                        signalS.annotations.push({
-                            time: (diffStartTime + visibleEndTime) / 2,
-                            startTime: diffStartTime,
-                            endTime: visibleEndTime,
-                            text: "",
-                            color: "#FF0000"
-                        });
-                    }
-                }
-                // Si no hemos añadido ninguna anotación pero sabemos que el último punto de S
-                // es diferente del último punto de S*, agregar una anotación final
-                if (signalS.annotations.length === 0) {
-                    const lastValueS = signalS.data[signalS.data.length - 1][1];
-                    const lastValueStar = signalStar.data[signalStar.data.length - 1][1];
-                    if (lastValueS !== lastValueStar) {
-                        const lastTimeS = signalS.data[signalS.data.length - 1][0];
-                        signalS.annotations.push({
-                            time: (lastTimeS + visibleEndTime) / 2,
-                            startTime: lastTimeS,
-                            endTime: visibleEndTime,
-                            text: "",
-                            color: "#FF0000"
-                        });
-                    }
-                }
-                // Asegurarse de que las anotaciones no comiencen antes del primer punto visible
-                const visibleStartTime = Math.max(0, this.sizes.row.range[0]);
-                signalS.annotations = signalS.annotations.map(annotation => {
-                    if (annotation.startTime !== undefined && annotation.startTime < visibleStartTime) {
-                        annotation.startTime = visibleStartTime;
-                    }
-                    return annotation;
-                });
-                this.compareChildSignals(signalS, signalStar);
+                this.compareMultibitSignals(signalBase, signalStar);
             }
+        }
+        // Método para comparar señales de un solo bit
+        compareUnibitSignals(signalBase, signalStar) {
+            // Usar el rango de tiempo actual para extender el último diff correctamente
+            const visibleEndTime = this.sizes.row.range[1];
+            if (signalStar.annotations === undefined) {
+                signalStar.annotations = [];
+            }
+            // Crear una lista combinada de todos los puntos de tiempo donde hay cambios en cualquier señal
+            const allTimePoints = new Set();
+            signalBase.data.forEach(d => allTimePoints.add(d[0]));
+            signalStar.data.forEach(d => allTimePoints.add(d[0]));
+            // Ordenar los puntos de tiempo
+            const sortedTimePoints = Array.from(allTimePoints).sort((a, b) => a - b);
+            let inDiffRange = false;
+            let diffStartTime = 0;
+            // Para cada punto de tiempo, obtener el valor de cada señal en ese momento
+            for (let i = 0; i < sortedTimePoints.length; i++) {
+                const currentTime = sortedTimePoints[i];
+                // Obtener el valor de la señal base en este punto de tiempo
+                const valueBase = this.getValueAtTime(signalBase.data, currentTime);
+                // Obtener el valor de la señal star en este punto de tiempo
+                const valueStar = this.getValueAtTime(signalStar.data, currentTime);
+                const isDifferent = valueBase !== valueStar;
+                // Comenzar un nuevo rango de diferencia
+                if (isDifferent && !inDiffRange) {
+                    diffStartTime = currentTime;
+                    inDiffRange = true;
+                }
+                // Finalizar un rango de diferencia existente
+                else if (!isDifferent && inDiffRange) {
+                    signalStar.annotations.push({
+                        time: (diffStartTime + currentTime) / 2,
+                        startTime: diffStartTime,
+                        endTime: currentTime,
+                        text: "",
+                        color: "#FF0000"
+                    });
+                    inDiffRange = false;
+                }
+                // Si es el último punto y todavía estamos en un rango de diferencia
+                if (i === sortedTimePoints.length - 1 && inDiffRange) {
+                    signalStar.annotations.push({
+                        time: (diffStartTime + visibleEndTime) / 2,
+                        startTime: diffStartTime,
+                        endTime: visibleEndTime,
+                        text: "",
+                        color: "#FF0000"
+                    });
+                }
+            }
+            // Ajustar las anotaciones al rango visible
+            this.adjustAnnotationsToVisibleRange(signalStar.annotations);
+        }
+        // Método para comparar señales multi-bit
+        compareMultibitSignals(signalBase, signalStar) {
+            // Reiniciar las anotaciones anteriores
+            signalStar.annotations = [];
+            // Usar el rango de tiempo actual para extender el último diff correctamente
+            const visibleEndTime = this.sizes.row.range[1];
+            // Crear una lista combinada de todos los puntos de tiempo donde hay cambios en cualquier señal
+            const allTimePoints = new Set();
+            signalBase.data.forEach(d => allTimePoints.add(d[0]));
+            signalStar.data.forEach(d => allTimePoints.add(d[0]));
+            // Ordenar los puntos de tiempo
+            const sortedTimePoints = Array.from(allTimePoints).sort((a, b) => a - b);
+            let inDiffRange = false;
+            let diffStartTime = 0;
+            // Para cada punto de tiempo, obtener el valor de cada señal en ese momento
+            for (let i = 0; i < sortedTimePoints.length; i++) {
+                const currentTime = sortedTimePoints[i];
+                // Obtener el valor de la señal base en este punto de tiempo
+                const valueBase = this.getValueAtTime(signalBase.data, currentTime);
+                // Obtener el valor de la señal star en este punto de tiempo
+                const valueStar = this.getValueAtTime(signalStar.data, currentTime);
+                const isDifferent = valueBase !== valueStar;
+                // Comenzar un nuevo rango de diferencia
+                if (isDifferent && !inDiffRange) {
+                    diffStartTime = currentTime;
+                    inDiffRange = true;
+                }
+                // Finalizar un rango de diferencia existente
+                else if (!isDifferent && inDiffRange) {
+                    signalStar.annotations.push({
+                        time: (diffStartTime + currentTime) / 2,
+                        startTime: diffStartTime,
+                        endTime: currentTime,
+                        text: "", // Texto vacío para señales multi-bit
+                        color: "#FF0000"
+                    });
+                    inDiffRange = false;
+                }
+                // Si es el último punto y todavía estamos en un rango de diferencia
+                if (i === sortedTimePoints.length - 1 && inDiffRange) {
+                    signalStar.annotations.push({
+                        time: (diffStartTime + visibleEndTime) / 2,
+                        startTime: diffStartTime,
+                        endTime: visibleEndTime,
+                        text: "",
+                        color: "#FF0000"
+                    });
+                }
+            }
+            // Ajustar las anotaciones al rango visible
+            this.adjustAnnotationsToVisibleRange(signalStar.annotations);
+            // Comparar las señales hijas si ambas tienen hijos
+            if (signalBase.children && signalStar.children) {
+                this.compareChildSignals(signalBase, signalStar);
+            }
+        }
+        // Método para ajustar las anotaciones al rango visible
+        adjustAnnotationsToVisibleRange(annotations) {
+            const visibleStartTime = Math.max(0, this.sizes.row.range[0]);
+            annotations.forEach(annotation => {
+                if (annotation.startTime !== undefined && annotation.startTime < visibleStartTime) {
+                    annotation.startTime = visibleStartTime;
+                }
+            });
         }
         compareChildSignals(signalS, signalStar) {
             if (!signalS.children || !signalStar.children) {
                 return;
             }
             // Comparar cada señal bit a bit
-            for (let i = 0; i < signalS.children.length; i++) {
-                const bitSignalS = signalS.children[i];
-                // Buscar la señal correspondiente en S*
-                const bitIndexMatch = bitSignalS.name.match(/_bit(\d+)$/);
+            for (let i = 0; i < signalStar.children.length; i++) {
+                const bitSignalStar = signalStar.children[i];
+                // Buscar la señal correspondiente en S
+                const bitIndexMatch = bitSignalStar.name.match(/_bit(\d+)$/);
                 if (!bitIndexMatch)
                     continue;
                 const bitIndex = bitIndexMatch[1];
-                const bitSignalStar = signalStar.children.find(child => child.name.includes(`_bit${bitIndex}`));
-                if (!bitSignalStar)
+                const bitSignalS = signalS.children.find(child => child.name.includes(`_bit${bitIndex}`));
+                if (!bitSignalS)
                     continue;
                 // Reiniciar las anotaciones
-                bitSignalS.annotations = [];
-                // Crear un mapa de valores para búsqueda rápida
-                const sStarValueMap = new Map();
-                bitSignalStar.data.forEach(dataPoint => {
-                    sStarValueMap.set(dataPoint[0], dataPoint[1]);
-                });
+                bitSignalStar.annotations = [];
+                // Crear una lista combinada de todos los puntos de tiempo
+                const allTimePoints = new Set();
+                bitSignalS.data.forEach(d => allTimePoints.add(d[0]));
+                bitSignalStar.data.forEach(d => allTimePoints.add(d[0]));
+                // Ordenar los puntos de tiempo
+                const sortedTimePoints = Array.from(allTimePoints).sort((a, b) => a - b);
                 let inDiffRange = false;
                 let diffStartTime = 0;
                 const visibleEndTime = this.sizes.row.range[1];
-                // Verificar cada punto de datos del bit
-                for (let j = 0; j < bitSignalS.data.length; j++) {
-                    const timeS = bitSignalS.data[j][0];
-                    const valueS = bitSignalS.data[j][1];
-                    // Obtener el valor correspondiente de S* bit
-                    let valueStar = sStarValueMap.get(timeS);
-                    if (valueStar === undefined) {
-                        // Si no hay un valor exacto, buscar el valor más cercano
-                        valueStar = this.findClosestValueBefore(bitSignalStar.data, timeS);
-                    }
+                // Para cada punto de tiempo, obtener el valor de cada señal
+                for (let j = 0; j < sortedTimePoints.length; j++) {
+                    const currentTime = sortedTimePoints[j];
+                    // Obtener el valor de la señal base en este punto de tiempo
+                    const valueS = this.getValueAtTime(bitSignalS.data, currentTime);
+                    // Obtener el valor de la señal star en este punto de tiempo
+                    const valueStar = this.getValueAtTime(bitSignalStar.data, currentTime);
                     const isDifferent = valueS !== valueStar;
                     // Comenzar un nuevo rango de diferencia
                     if (isDifferent && !inDiffRange) {
-                        diffStartTime = timeS;
+                        diffStartTime = currentTime;
                         inDiffRange = true;
                     }
                     // Finalizar un rango de diferencia existente
                     else if (!isDifferent && inDiffRange) {
-                        bitSignalS.annotations.push({
-                            time: (diffStartTime + timeS) / 2,
+                        bitSignalStar.annotations.push({
+                            time: (diffStartTime + currentTime) / 2,
                             startTime: diffStartTime,
-                            endTime: timeS,
-                            text: "diff",
+                            endTime: currentTime,
+                            text: "",
                             color: "#FF0000"
                         });
                         inDiffRange = false;
                     }
                     // Si es el último punto y todavía estamos en un rango de diferencia
-                    if (j === bitSignalS.data.length - 1 && inDiffRange) {
-                        bitSignalS.annotations.push({
+                    if (j === sortedTimePoints.length - 1 && inDiffRange) {
+                        bitSignalStar.annotations.push({
                             time: (diffStartTime + visibleEndTime) / 2,
                             startTime: diffStartTime,
                             endTime: visibleEndTime,
-                            text: "diff",
+                            text: "",
                             color: "#FF0000"
                         });
                     }
@@ -2879,6 +2869,16 @@
                 }
             }
             return closestValue;
+        }
+        // Método para obtener el valor de una señal en un tiempo específico
+        getValueAtTime(data, time) {
+            // Si el tiempo es exactamente igual a un punto de datos, devolver ese valor
+            const exactMatch = data.find(d => d[0] === time);
+            if (exactMatch) {
+                return exactMatch[1];
+            }
+            // Si no hay un punto exacto, buscar el valor más reciente antes de ese tiempo
+            return this.findClosestValueBefore(data, time);
         }
     }
 

@@ -54,6 +54,12 @@ export declare class WaveGraph {
     bindData(_signalData: WaveGraphSignal): void;
     zoomReset(): void;
     compareAndAnnotateSignals(): void;
+    private getAllSignals;
+    private compareSignalPair;
+    private compareUnibitSignals;
+    private compareMultibitSignals;
+    private adjustAnnotationsToVisibleRange;
     compareChildSignals(signalS: WaveGraphSignal, signalStar: WaveGraphSignal): void;
     findClosestValueBefore(data: any[], time: number): any;
+    private getValueAtTime;
 }

@@ -116,10 +116,12 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 						console.log('Signal has already been broken down', d.data.data.name);
 						return;
 					}
+
 					const parentType = d.data.data.type;
 					const parentData = d.data.data.data;
 					const parentSignalName = d.data.data.name;
 					const parentIsBrokenDown = true;
+
 					const newSignalData: WaveGraphSignal = {
 						name: `${parentSignalName} Child`,
 						type: parentType,
@@ -129,6 +131,25 @@ export class SignalContextMenu extends ContextMenu<HierarchyNodeWaveGraphSignalW
 
 					waveGraph.addChildSignal(parentSignalName, newSignalData, this.removedSignals);
 					d.data.data.isBrokenDown = true;
+
+					// Check for related signals with or without '*'
+					const relatedSignalName = parentSignalName.endsWith('*')
+						? parentSignalName.slice(0, -1)
+						: `${parentSignalName}*`;
+
+					waveGraph.treelist?.visibleNodes().forEach((node) => {
+						if (node.data.name === relatedSignalName && !node.data.isBrokenDown) {
+							const relatedSignalData: WaveGraphSignal = {
+								name: `${relatedSignalName} Child`,
+								type: node.data.type,
+								data: node.data.data,
+								isBrokenDown: true,
+							};
+
+							waveGraph.addChildSignal(relatedSignalName, relatedSignalData, this.removedSignals);
+							node.data.isBrokenDown = true;
+						}
+					});
 				}
 			),
 		];
